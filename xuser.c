@@ -358,8 +358,8 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureAsync( IXUserImpl6 *iface,
 {
     ensure_user_info();
     register_token_req(async, method, url);
-    fprintf(stderr, "[GDK XUser] XUserGetTokenAndSignatureAsync: options=0x%x, method='%s', url='%s', async=%p\n",
-            options, method ? method : "", url ? url : "", async);
+    TRACE( "[GDK XUser] XUserGetTokenAndSignatureAsync: options=0x%x, method='%s', url='%s', async=%p\n",
+           options, method ? method : "", url ? url : "", async );
     complete_async(async);
     return S_OK;
 }
@@ -369,6 +369,7 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResultSize( IXUserImpl6 *i
     if (bufferSize)
     {
         *bufferSize = sizeof(XUserGetTokenAndSignatureData) + 16384;
+        TRACE( "[GDK XUser] XUserGetTokenAndSignatureResultSize: bufferSize=%zu\n", *bufferSize );
         return S_OK;
     }
     return E_POINTER;
@@ -407,8 +408,8 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResult( IXUserImpl6 *iface
         data->signatureSize = 0;
     }
 
-    fprintf(stderr, "[GDK XUser] XUserGetTokenAndSignatureResult: token len=%zu, sig len=%zu for RP '%s'\n",
-            data->tokenSize, data->signatureSize, req_url);
+    TRACE( "[GDK XUser] XUserGetTokenAndSignatureResult: token len=%zu, sig len=%zu for RP '%s'\n",
+           data->tokenSize, data->signatureSize, req_url );
 
     if (ptrToBuffer) *ptrToBuffer = data;
     if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureData) + data->tokenSize + data->signatureSize;
@@ -426,8 +427,8 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Async( IXUserImpl6 *i
     if (url && url[0]) WideCharToMultiByte(CP_UTF8, 0, url, -1, url_a, sizeof(url_a) - 1, NULL, NULL);
 
     register_token_req(async, method_a, url_a);
-    fprintf(stderr, "[GDK XUser] XUserGetTokenAndSignatureUtf16Async: options=0x%x, method='%s', url='%s', async=%p\n",
-            options, method_a, url_a, async);
+    TRACE( "[GDK XUser] XUserGetTokenAndSignatureUtf16Async: options=0x%x, method='%s', url='%s', async=%p\n",
+           options, method_a, url_a, async );
     complete_async(async);
     return S_OK;
 }
@@ -477,11 +478,11 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
     }
 
     data->token = token_w;
-    data->tokenCount = token_count * sizeof(WCHAR);
+    data->tokenCount = token_count;
     if (sig_buf[0] != '\0')
     {
         data->signature = sig_w;
-        data->signatureCount = sig_count * sizeof(WCHAR);
+        data->signatureCount = sig_count;
     }
     else
     {
@@ -489,11 +490,11 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
         data->signatureCount = 0;
     }
 
-    fprintf(stderr, "[GDK XUser] XUserGetTokenAndSignatureUtf16Result: tokenBytes=%zu, sigBytes=%zu for RP '%s'\n",
-            data->tokenCount, data->signatureCount, req_url);
+    TRACE( "[GDK XUser] XUserGetTokenAndSignatureUtf16Result: tokenChars=%zu, sigChars=%zu for RP '%s'\n",
+           data->tokenCount, data->signatureCount, req_url );
 
     if (ptrToBuffer) *ptrToBuffer = data;
-    if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureUtf16Data) + (token_count + sig_count) * sizeof(WCHAR);
+    if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureUtf16Data) + (token_count + (data->signature ? sig_count : 0)) * sizeof(WCHAR);
 
     return S_OK;
 }
