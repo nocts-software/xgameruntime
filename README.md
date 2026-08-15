@@ -117,17 +117,19 @@ To use `xgameruntime` with a game in Proton or Wine:
    proton run GameExecutable.exe
    ```
 
-*(Note: [Xodus](https://github.com/nocts-software/xodus) automatically configures these paths, stubs, and overrides upon game launch).*
+## 🤝 Related Projects & Upstream
+ 
+ - **[Xodus](https://github.com/nocts-software/xodus)** ([upstream](https://github.com/xodus-gaming/xodus)): Native Linux client and package downloader for Xbox Game Pass and Microsoft Store games.
+ - **[xgameruntime-docs](https://github.com/nocts-software/xgameruntime-docs)** ([upstream](https://github.com/xodus-gaming/xgameruntime-docs)): Deep technical documentation and reverse-engineered specifications of GDK COM interfaces.
+ - **Original Repositories**:
+   - [xodus-gaming/xgameruntime](https://github.com/xodus-gaming/xgameruntime)
+   - [xodus-gaming/xodus](https://github.com/xodus-gaming/xodus)
+   - [xodus-gaming/xgameruntime-docs](https://github.com/xodus-gaming/xgameruntime-docs)
 
 ---
 
-## 🤝 Related Projects
-
-- **[Xodus](https://github.com/nocts-software/xodus)**: Native Linux client and package downloader for Xbox Game Pass and Microsoft Store games.
-- **[xgameruntime-docs](https://github.com/nocts-software/xgameruntime-docs)**: Deep technical documentation and reverse-engineered specifications of GDK COM interfaces.
-
----
-
-## 📜 License
+## 📜 License & Acknowledgments
 
 This library is distributed under the **GNU Lesser General Public License v2.1 (LGPL-2.1)**. See [LICENSE](LICENSE) for details.
+
+Special thanks to the original [xodus-gaming](https://github.com/xodus-gaming) team for founding the project and pioneering open-source GDK runtime development for Wine.
