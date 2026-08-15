@@ -68,42 +68,113 @@ static ULONG WINAPI x_threading_Release( IXThreadingImpl *iface )
     return ref;
 }
 
+struct async_internal
+{
+    XAsyncProvider *provider;
+    void *context;
+    const void *identity;
+    HRESULT result;
+    SIZE_T requiredBufferSize;
+    BOOL completed;
+    BOOL cleaned;
+};
+
+static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, void *callbackContext, XTaskQueueCallback *callback );
+
 static HRESULT WINAPI x_threading_XAsyncGetStatus( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, BOOLEAN wait )
 {
+    struct async_internal *state;
     TRACE( "iface %p, asyncBlock %p, wait %d\n", iface, asyncBlock, wait );
-    return S_OK;
+    if (!asyncBlock) return E_POINTER;
+    state = *(struct async_internal**)&asyncBlock->internal[0];
+    if (!state) return S_OK;
+    return state->completed ? state->result : E_PENDING;
 }
 
 static HRESULT WINAPI x_threading_XAsyncGetResultSize( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, SIZE_T *bufferSize )
 {
+    struct async_internal *state;
     TRACE( "iface %p, asyncBlock %p, bufferSize %p\n", iface, asyncBlock, bufferSize );
-    if (bufferSize) *bufferSize = sizeof(void*);
+    if (!asyncBlock || !bufferSize) return E_POINTER;
+    state = *(struct async_internal**)&asyncBlock->internal[0];
+    if (state)
+    {
+        *bufferSize = state->requiredBufferSize;
+        return state->result;
+    }
+    *bufferSize = sizeof(void*);
     return S_OK;
 }
 
 static void WINAPI x_threading_XAsyncCancel( IXThreadingImpl *iface, XAsyncBlock *asyncBlock )
 {
+    struct async_internal *state;
     TRACE( "iface %p, asyncBlock %p\n", iface, asyncBlock );
+    if (!asyncBlock) return;
+    state = *(struct async_internal**)&asyncBlock->internal[0];
+    if (state && state->provider)
+    {
+        XAsyncProviderData data = {0};
+        data.async = asyncBlock;
+        data.context = state->context;
+        state->provider(XAsyncOp_Cancel, &data);
+        if (!state->cleaned)
+        {
+            state->provider(XAsyncOp_Cleanup, &data);
+            state->cleaned = TRUE;
+        }
+        free(state);
+        *(struct async_internal**)&asyncBlock->internal[0] = NULL;
+    }
 }
 
 static HRESULT WINAPI x_threading_XAsyncRun( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, XAsyncWork *work )
 {
     TRACE( "iface %p, asyncBlock %p, work %p\n", iface, asyncBlock, work );
     if (work) work(asyncBlock);
-    if (asyncBlock && asyncBlock->callback) asyncBlock->callback(asyncBlock);
+    if (asyncBlock && asyncBlock->callback)
+    {
+        if (asyncBlock->queue)
+        {
+            x_threading_XTaskQueueSubmitCallback(iface, asyncBlock->queue, XTaskQueuePort_Completion, asyncBlock, (XTaskQueueCallback*)asyncBlock->callback);
+        }
+        else
+        {
+            asyncBlock->callback(asyncBlock);
+        }
+    }
     return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XAsyncBegin( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, void *context, const void *identity, const char *identityName, XAsyncProvider *provider )
 {
+    struct async_internal *state;
     XAsyncProviderData data;
+    HRESULT hr;
+
     TRACE( "iface %p, asyncBlock %p, context %p, identity %p, identityName %s, provider %p\n", iface, asyncBlock, context, identity, identityName, provider );
-    memset(&data, 0, sizeof(data));
-    data.async = asyncBlock;
-    data.context = context;
+    if (!asyncBlock) return E_POINTER;
+
+    state = calloc(1, sizeof(*state));
+    if (!state) return E_OUTOFMEMORY;
+    state->provider = provider;
+    state->context = context;
+    state->identity = identity;
+    state->result = E_PENDING;
+    *(struct async_internal**)&asyncBlock->internal[0] = state;
+
     if (provider)
     {
-        provider(XAsyncOp_Begin, &data);
+        memset(&data, 0, sizeof(data));
+        data.async = asyncBlock;
+        data.context = context;
+        hr = provider(XAsyncOp_Begin, &data);
+        if (FAILED(hr))
+        {
+            free(state);
+            *(struct async_internal**)&asyncBlock->internal[0] = NULL;
+            return hr;
+        }
     }
     return S_OK;
 }
@@ -117,26 +188,85 @@ static HRESULT WINAPI __PADDING__( IXThreadingImpl *iface )
 
 static HRESULT WINAPI x_threading_XAsyncSchedule( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, UINT32 delayInMs )
 {
+    struct async_internal *state;
     TRACE( "iface %p, asyncBlock %p, delayInMs %d\n", iface, asyncBlock, delayInMs );
-    if (asyncBlock && asyncBlock->callback) asyncBlock->callback(asyncBlock);
+    if (!asyncBlock) return E_POINTER;
+    state = *(struct async_internal**)&asyncBlock->internal[0];
+    if (state && state->provider)
+    {
+        XAsyncProviderData data = {0};
+        data.async = asyncBlock;
+        data.context = state->context;
+        state->provider(XAsyncOp_DoWork, &data);
+    }
+    else
+    {
+        if (asyncBlock->queue)
+        {
+            x_threading_XTaskQueueSubmitCallback(iface, asyncBlock->queue, XTaskQueuePort_Completion, asyncBlock, (XTaskQueueCallback*)asyncBlock->callback);
+        }
+        else if (asyncBlock->callback)
+        {
+            asyncBlock->callback(asyncBlock);
+        }
+    }
     return S_OK;
 }
 
 static void WINAPI x_threading_XAsyncComplete( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, HRESULT result, SIZE_T requiredBufferSize )
 {
+    struct async_internal *state;
     TRACE( "iface %p, asyncBlock %p, result %#lx, requiredBufferSize %Iu\n", iface, asyncBlock, result, requiredBufferSize );
-    if (asyncBlock && asyncBlock->callback) asyncBlock->callback(asyncBlock);
+    if (!asyncBlock) return;
+    state = *(struct async_internal**)&asyncBlock->internal[0];
+    if (state)
+    {
+        state->completed = TRUE;
+        state->result = result;
+        state->requiredBufferSize = requiredBufferSize;
+    }
+    if (asyncBlock->queue)
+    {
+        x_threading_XTaskQueueSubmitCallback(iface, asyncBlock->queue, XTaskQueuePort_Completion, asyncBlock, (XTaskQueueCallback*)asyncBlock->callback);
+    }
+    else if (asyncBlock->callback)
+    {
+        asyncBlock->callback(asyncBlock);
+    }
 }
 
 static HRESULT WINAPI x_threading_XAsyncGetResult( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, const void *identity, SIZE_T bufferSize, void *buffer, SIZE_T *bufferUsed )
 {
+    struct async_internal *state;
+    HRESULT hr = S_OK;
+
     TRACE( "iface %p asyncBlock %p, identity %p, bufferSize %Iu, buffer %p, bufferUsed %p\n", iface, asyncBlock, identity, bufferSize, buffer, bufferUsed );
-    if (buffer && bufferSize > 0)
+    if (!asyncBlock) return E_POINTER;
+    state = *(struct async_internal**)&asyncBlock->internal[0];
+
+    if (state && state->provider)
     {
-        memset(buffer, 0, bufferSize);
+        XAsyncProviderData data = {0};
+        data.async = asyncBlock;
+        data.context = state->context;
+        data.buffer = buffer;
+        data.bufferSize = bufferSize;
+        hr = state->provider(XAsyncOp_GetResult, &data);
+        if (bufferUsed) *bufferUsed = data.bufferSize;
+        if (!state->cleaned)
+        {
+            state->provider(XAsyncOp_Cleanup, &data);
+            state->cleaned = TRUE;
+        }
+        free(state);
+        *(struct async_internal**)&asyncBlock->internal[0] = NULL;
     }
-    if (bufferUsed) *bufferUsed = bufferSize;
-    return S_OK;
+    else
+    {
+        if (buffer && bufferSize > 0) memset(buffer, 0, bufferSize);
+        if (bufferUsed) *bufferUsed = bufferSize;
+    }
+    return hr;
 }
 
 
