@@ -29,10 +29,43 @@
 #define TRACE(fmt, ...) do { \
     FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
     if (_log_f) { \
-        fprintf(_log_f, "[XGDK] " fmt, ##__VA_ARGS__); \
+        fprintf(_log_f, "[XGDK TRACE] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
         fclose(_log_f); \
     } \
-    fprintf(stderr, "[XGDK] " fmt, ##__VA_ARGS__); \
+    fprintf(stderr, "[XGDK TRACE] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
+    fflush(stderr); \
+} while(0)
+
+#undef FIXME
+#define FIXME(fmt, ...) do { \
+    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
+    if (_log_f) { \
+        fprintf(_log_f, "[XGDK FIXME] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
+        fclose(_log_f); \
+    } \
+    fprintf(stderr, "[XGDK FIXME] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
+    fflush(stderr); \
+} while(0)
+
+#undef WARN
+#define WARN(fmt, ...) do { \
+    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
+    if (_log_f) { \
+        fprintf(_log_f, "[XGDK WARN] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
+        fclose(_log_f); \
+    } \
+    fprintf(stderr, "[XGDK WARN] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
+    fflush(stderr); \
+} while(0)
+
+#undef ERR
+#define ERR(fmt, ...) do { \
+    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
+    if (_log_f) { \
+        fprintf(_log_f, "[XGDK ERR] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
+        fclose(_log_f); \
+    } \
+    fprintf(stderr, "[XGDK ERR] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
     fflush(stderr); \
 } while(0)
 
