@@ -73,6 +73,7 @@ static ULONG WINAPI x_game_Release( IXGameImpl3 *iface )
 static HRESULT WINAPI x_game_XGameGetXboxTitleId( IXGameImpl3 *iface, UINT32 *titleId )
 {
     const char *env_title_id;
+    FILE *f;
     TRACE( "iface %p, titleId %p\n", iface, titleId );
     if (!titleId) return E_POINTER;
 
@@ -80,9 +81,38 @@ static HRESULT WINAPI x_game_XGameGetXboxTitleId( IXGameImpl3 *iface, UINT32 *ti
     if (env_title_id && *env_title_id)
     {
         *titleId = (UINT32)strtoul(env_title_id, NULL, 16);
+        fprintf(stderr, "[GDK XGame] XGameGetXboxTitleId: returning TitleId 0x%08X (%u) from env\n", *titleId, *titleId);
         return S_OK;
     }
-    *titleId = 0x77BB5AFB;
+
+    f = fopen("appxmanifest.xml", "r");
+    if (!f) f = fopen("AppxManifest.xml", "r");
+    if (!f) f = fopen("../appxmanifest.xml", "r");
+    if (!f) f = fopen("../AppxManifest.xml", "r");
+    if (!f) f = fopen("../../appxmanifest.xml", "r");
+    if (!f) f = fopen("../../AppxManifest.xml", "r");
+    if (!f) f = fopen("../../../appxmanifest.xml", "r");
+    if (!f) f = fopen("../../../AppxManifest.xml", "r");
+    if (f)
+    {
+        char line[512];
+        while (fgets(line, sizeof(line), f))
+        {
+            char *p = strstr(line, "ms-xbl-");
+            if (p)
+            {
+                p += 7;
+                *titleId = (UINT32)strtoul(p, NULL, 16);
+                fclose(f);
+                fprintf(stderr, "[GDK XGame] XGameGetXboxTitleId: detected TitleId 0x%08X (%u) from manifest\n", *titleId, *titleId);
+                return S_OK;
+            }
+        }
+        fclose(f);
+    }
+
+    *titleId = 0x66591171;
+    fprintf(stderr, "[GDK XGame] XGameGetXboxTitleId: fallback TitleId 0x%08X (%u)\n", *titleId, *titleId);
     return S_OK;
 }
 
