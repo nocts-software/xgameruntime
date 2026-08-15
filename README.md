@@ -7,6 +7,12 @@
     <a href="https://discord.gg/ZG774FK4tq">
         <img src="https://img.shields.io/discord/1123890623586504714?logo=discord&style=for-the-badge&color=green&label=Discord" alt="Discord" />
     </a>
+    <a href="https://ko-fi.com/noct1">
+        <img src="https://img.shields.io/badge/Ko--fi-F16061?logo=ko-fi&logoColor=white&style=for-the-badge" alt="Support on Ko-fi" />
+    </a>
+    <a href="https://www.patreon.com/cw/nocatix">
+        <img src="https://img.shields.io/badge/Patreon-FF424D?logo=patreon&logoColor=white&style=for-the-badge" alt="Support on Patreon" />
+    </a>
     <img src="https://img.shields.io/badge/Platform-Wine%20%7C%20Proton-red?style=for-the-badge" alt="Platform" />
     <img src="https://img.shields.io/badge/License-LGPL--2.1-purple?style=for-the-badge" alt="License" />
 </p>
@@ -125,6 +131,22 @@ To use `xgameruntime` with a game in Proton or Wine:
    - [xodus-gaming/xgameruntime](https://github.com/xodus-gaming/xgameruntime)
    - [xodus-gaming/xodus](https://github.com/xodus-gaming/xodus)
    - [xodus-gaming/xgameruntime-docs](https://github.com/xodus-gaming/xgameruntime-docs)
+
+## 🔒 Clean-Room Interoperability & Anti-Piracy Notice
+
+`xgameruntime` is an open-source clean-room reimplementation of Microsoft Gaming Runtime (GDK) APIs designed exclusively to provide compatibility for running Windows games on Linux under Wine and Proton:
+
+- **No DRM Bypass**: `xgameruntime` does not bypass, strip, or alter digital rights management. It provides standard Win32/COM function shims that route store, entitlement, and user queries to legitimate platform APIs.
+- **Authentic Token Verification**: Online authentication (`XUserGetTokenAndSignatureUtf16Async`) requires genuine cryptographic tokens issued by Xbox Live servers for the signed-in user.
+
+---
+
+## 💖 Support the Project
+
+If you find `xgameruntime` valuable for gaming on Linux with Wine and Proton, please consider supporting development:
+
+- ☕ **Ko-fi**: [ko-fi.com/noct1](https://ko-fi.com/noct1)
+- 🧡 **Patreon**: [patreon.com/cw/nocatix](https://www.patreon.com/cw/nocatix)
 
 ---
 
