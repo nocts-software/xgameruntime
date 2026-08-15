@@ -28,6 +28,8 @@
 
 It enables native execution of Windows GDK games (including Microsoft Store and Xbox Game Pass titles) under **Wine** and **Proton** without requiring proprietary Windows runtime binaries.
 
+This solution provides comprehensive inter-process communication (IPC) wiring with [`xodus-service`](https://github.com/nocts-software/xodus) and [`xodus-gui`](https://github.com/nocts-software/xodus), delivering seamless user authentication, cloud save synchronization, and automated Proton prefix DLL override setups.
+
 ---
 
 ## ✨ Features & Implemented Subsystems
