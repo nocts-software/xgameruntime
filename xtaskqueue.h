@@ -36,7 +36,7 @@ enum class XTaskQueuePort : UINT32
     Completion,
 };
 
-#elif defined(__WINESRC__)
+#else
 
 typedef enum XTaskQueueDispatchMode
 {
@@ -53,6 +53,7 @@ typedef enum XTaskQueuePort
 } XTaskQueuePort;
 
 #endif
+
 
 typedef struct XTaskQueueObject *XTaskQueueHandle;
 typedef struct XTaskQueuePortObject *XTaskQueuePortHandle;

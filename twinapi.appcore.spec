@@ -1,0 +1,5 @@
+@ stdcall DllGetActivationFactory(ptr ptr)
+@ stdcall RegisterAppStateChangeNotification(ptr ptr ptr)
+@ stdcall RegisterAppConstrainedChangeNotification(ptr ptr ptr)
+@ stdcall UnregisterAppStateChangeNotification(ptr)
+@ stdcall UnregisterAppConstrainedChangeNotification(ptr)

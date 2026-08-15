@@ -49,6 +49,8 @@
 #include <xsystem.h>
 #include <xtaskqueue.h>
 #include <xuser.h>
+#include "ipc.h"
+
 
 /* April 2026 Update 3 Release of GDK */
 #define GDKC_VERSION 10002L
@@ -88,5 +90,8 @@ extern IXSystemAnalyticsImpl *x_system_analytics_impl;
 extern IXThreadingImpl *x_threading_impl;
 extern IXUserImpl *x_user_impl;
 extern IXUserDeviceImpl *x_user_device_impl;
+
+extern void *get_winrt_package_factory(void);
+extern HWND create_core_window_host(void);
 
 HRESULT WINAPI QueryApiImpl( const GUID *classId, REFIID interfaceId, void **out );

@@ -28,7 +28,7 @@ enum class XSpeechSynthesizerVoiceGender : UINT32
     Male,
 };
 
-#elif defined(__WINESRC__)
+#else
 
 typedef enum XSpeechSynthesizerVoiceGender
 {
@@ -37,6 +37,7 @@ typedef enum XSpeechSynthesizerVoiceGender
 } XSpeechSynthesizerVoiceGender;
 
 #endif
+
 
 typedef struct XSpeechSynthesizer *XSpeechSynthesizerHandle;
 typedef struct XSpeechSynthesizerStream *XSpeechSynthesizerStreamHandle;

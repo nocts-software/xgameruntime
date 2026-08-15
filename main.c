@@ -25,7 +25,127 @@ WINE_DEFAULT_DEBUG_CHANNEL(xgameruntime);
 
 DWORD tlsIndex;
 
+/* Dummy WinRT Activation Factory COM implementation */
+static HRESULT WINAPI dummy_inspectable_QueryInterface(IUnknown *iface, REFIID iid, void **out)
+{
+    TRACE("dummy_inspectable_QueryInterface iface %p, iid %s, out %p.\n", iface, debugstr_guid(iid), out);
+    if (!out) return E_POINTER;
+    *out = iface;
+    return S_OK;
+}
+
+static ULONG WINAPI dummy_inspectable_AddRef(IUnknown *iface)
+{
+    return 2;
+}
+
+static ULONG WINAPI dummy_inspectable_Release(IUnknown *iface)
+{
+    return 1;
+}
+
+static HRESULT WINAPI dummy_stub_method(void *iface, void *arg1, void *arg2, void *arg3)
+{
+    TRACE("dummy_stub_method called on %p, arg1 %p, arg2 %p, arg3 %p.\n", iface, arg1, arg2, arg3);
+    if (arg1 && (ULONG_PTR)arg1 > 0x10000 && !IsBadWritePtr(arg1, sizeof(void*))) *(void**)arg1 = iface;
+    if (arg2 && (ULONG_PTR)arg2 > 0x10000 && !IsBadWritePtr(arg2, sizeof(void*))) *(void**)arg2 = iface;
+    if (arg3 && (ULONG_PTR)arg3 > 0x10000 && !IsBadWritePtr(arg3, sizeof(void*))) *(void**)arg3 = iface;
+    return S_OK;
+}
+
+
+static const void *dummy_inspectable_vtbl[] = {
+    dummy_inspectable_QueryInterface,
+    dummy_inspectable_AddRef,
+    dummy_inspectable_Release,
+    dummy_inspectable_QueryInterface,
+    dummy_inspectable_QueryInterface,
+    dummy_inspectable_QueryInterface,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method,
+    dummy_stub_method
+};
+
+static struct {
+    const void **vtbl;
+} dummy_inspectable = { dummy_inspectable_vtbl };
+
+
+static HRESULT WINAPI dummy_factory_QueryInterface(IUnknown *iface, REFIID iid, void **out)
+{
+    if (!out) return E_POINTER;
+    *out = iface;
+    return S_OK;
+}
+
+static ULONG WINAPI dummy_factory_AddRef(IUnknown *iface)
+{
+    return 2;
+}
+
+static ULONG WINAPI dummy_factory_Release(IUnknown *iface)
+{
+    return 1;
+}
+
+static HRESULT WINAPI dummy_factory_GetIids(IUnknown *iface, ULONG *count, GUID **iids)
+{
+    if (count) *count = 0;
+    if (iids) *iids = NULL;
+    return S_OK;
+}
+
+static HRESULT WINAPI dummy_factory_GetRuntimeClassName(IUnknown *iface, void **className)
+{
+    if (className) *className = NULL;
+    return S_OK;
+}
+
+static HRESULT WINAPI dummy_factory_GetTrustLevel(IUnknown *iface, DWORD *trustLevel)
+{
+    if (trustLevel) *trustLevel = 0;
+    return S_OK;
+}
+
+static HRESULT WINAPI dummy_factory_ActivateInstance(IUnknown *iface, void **instance)
+{
+    if (!instance) return E_POINTER;
+    *instance = &dummy_inspectable;
+    return S_OK;
+}
+
+static const void *dummy_factory_vtbl[] = {
+    dummy_factory_QueryInterface,
+    dummy_factory_AddRef,
+    dummy_factory_Release,
+    dummy_factory_GetIids,
+    dummy_factory_GetRuntimeClassName,
+    dummy_factory_GetTrustLevel,
+    dummy_factory_ActivateInstance
+};
+
+static struct {
+    const void **vtbl;
+} dummy_activation_factory_obj = { dummy_factory_vtbl };
+
+HRESULT WINAPI DllGetActivationFactory(void *classid, void **factory)
+{
+    TRACE( "classid %p, factory %p.\n", classid, factory );
+    if (!factory) return E_POINTER;
+    *factory = get_winrt_package_factory();
+    return S_OK;
+}
+
+
 BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, void *reserved )
+
 {
     TRACE( "hinst %p, reason %lu, reserved %p.\n", hinst, reason, reserved );
 
@@ -33,6 +153,9 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, void *reserved )
     {
         case DLL_PROCESS_ATTACH:
             if ((tlsIndex = TlsAlloc()) == TLS_OUT_OF_INDEXES) return FALSE;
+            break;
+
+
         case DLL_THREAD_ATTACH:
             TlsSetValue( tlsIndex, FALSE );
             break;
@@ -68,7 +191,9 @@ HRESULT WINAPI InitializeApiImpl( ULONG gdkVer, ULONG gsVer )
 
 HRESULT WINAPI QueryApiImpl( REFCLSID clsid, REFIID iid, void **out )
 {
-    TRACE( "clsid %s, iid %s, out %p.\n", debugstr_guid( clsid ), debugstr_guid( iid ), out );
+    FIXME( "QueryApiImpl clsid %s, iid %s, out %p.\n", debugstr_guid( clsid ), debugstr_guid( iid ), out );
+
+    if (!out) return E_POINTER;
 
     if (IsEqualGUID( clsid, &CLSID_XAccessibilityImpl ))
         return IXAccessibilityImpl_QueryInterface( x_accessibility_impl, iid, out );
@@ -119,5 +244,8 @@ HRESULT WINAPI QueryApiImpl( REFCLSID clsid, REFIID iid, void **out )
     if (IsEqualGUID( clsid, &CLSID_XUserDeviceImpl ))
         return IXUserDeviceImpl_QueryInterface( x_user_device_impl, iid, out );
 
-    return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED );
+    FIXME( "Unknown clsid %s, iid %s\n", debugstr_guid( clsid ), debugstr_guid( iid ) );
+    *out = &dummy_activation_factory_obj;
+    return S_OK;
 }
+

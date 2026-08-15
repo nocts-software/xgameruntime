@@ -71,21 +71,33 @@ static ULONG WINAPI x_networking_Release( IXNetworkingImpl2 *iface )
 
 static HRESULT WINAPI x_networking_XNetworkingQueryPreferredLocalUdpMultiplayerPort( IXNetworkingImpl2 *iface, UINT16 *preferredLocalUdpMultiplayerPort )
 {
-    FIXME( "iface %p, preferredLocalUdpMultiplayerPort %p stub!\n", iface, preferredLocalUdpMultiplayerPort );
-    return E_NOTIMPL;
+    TRACE( "iface %p, preferredLocalUdpMultiplayerPort %p.\n", iface, preferredLocalUdpMultiplayerPort );
+    if (preferredLocalUdpMultiplayerPort)
+    {
+        *preferredLocalUdpMultiplayerPort = 3074;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_networking_XNetworkingQueryPreferredLocalUdpMultiplayerPortAsync( IXNetworkingImpl2 *iface, XAsyncBlock *asyncBlock )
 {
-    FIXME( "iface %p, asyncBlock %p stub!\n", iface, asyncBlock );
-    return E_NOTIMPL;
+    TRACE( "iface %p, asyncBlock %p.\n", iface, asyncBlock );
+    if (asyncBlock && asyncBlock->callback) asyncBlock->callback(asyncBlock);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_networking_XNetworkingQueryPreferredLocalUdpMultiplayerPortAsyncResult( IXNetworkingImpl2 *iface, XAsyncBlock *asyncBlock, UINT16 *preferredLocalUdpMultiplayerPort )
 {
-    FIXME( "iface %p, asyncBlock %p, preferredLocalUdpMultiplayerPort %p stub!\n", iface, asyncBlock, preferredLocalUdpMultiplayerPort );
-    return E_NOTIMPL;
+    TRACE( "iface %p, asyncBlock %p, preferredLocalUdpMultiplayerPort %p.\n", iface, asyncBlock, preferredLocalUdpMultiplayerPort );
+    if (preferredLocalUdpMultiplayerPort)
+    {
+        *preferredLocalUdpMultiplayerPort = 3074;
+        return S_OK;
+    }
+    return E_POINTER;
 }
+
 
 static HRESULT WINAPI x_networking_XNetworkingRegisterPreferredLocalUdpMultiplayerPortChanged( IXNetworkingImpl2 *iface, XTaskQueueHandle queue, void *context, XNetworkingPreferredLocalUdpMultiplayerPortChangedCallback *callback, XTaskQueueRegistrationToken *token )
 {
@@ -143,21 +155,32 @@ static HRESULT WINAPI x_networking_XNetworkingVerifyServerCertificate( IXNetwork
 
 static HRESULT WINAPI x_networking_XNetworkingGetConnectivityHint( IXNetworkingImpl2 *iface, XNetworkingConnectivityHint *connectivityHint )
 {
-    FIXME( "iface %p, connectivityHint %p stub!\n", iface, connectivityHint );
-    return E_NOTIMPL;
+    TRACE( "iface %p, connectivityHint %p\n", iface, connectivityHint );
+    if (!connectivityHint) return E_POINTER;
+    memset( connectivityHint, 0, sizeof(*connectivityHint) );
+    connectivityHint->connectivityLevel = XNetworkingConnectivityLevelHint_InternetAccess;
+    connectivityHint->connectivityCost = XNetworkingConnectivityCostHint_Unrestricted;
+    connectivityHint->networkInitialized = TRUE;
+    connectivityHint->approachingDataLimit = FALSE;
+    connectivityHint->overDataLimit = FALSE;
+    connectivityHint->roaming = FALSE;
+    return S_OK;
 }
+
 
 static HRESULT WINAPI x_networking_XNetworkingRegisterConnectivityHintChanged( IXNetworkingImpl2 *iface, XTaskQueueHandle queue, void *context, XNetworkingConnectivityHintChangedCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_networking_XNetworkingUnregisterConnectivityHintChanged( IXNetworkingImpl2 *iface, XTaskQueueRegistrationToken token, BOOLEAN wait )
 {
-    FIXME( "iface %p, token %p, wait %d stub!\n", iface, &token, wait );
-    return FALSE;
+    TRACE( "iface %p, token %p, wait %d\n", iface, &token, wait );
+    return TRUE;
 }
+
 
 static HRESULT WINAPI x_networking_XNetworkingQueryConfigurationSetting( IXNetworkingImpl2 *iface, XNetworkingConfigurationSetting configurationSetting, UINT64 *value )
 {

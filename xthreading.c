@@ -70,141 +70,213 @@ static ULONG WINAPI x_threading_Release( IXThreadingImpl *iface )
 
 static HRESULT WINAPI x_threading_XAsyncGetStatus( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, BOOLEAN wait )
 {
-    FIXME( "iface %p, asyncBlock %p, wait %d stub!\n", iface, asyncBlock, wait );
-    return E_NOTIMPL;
+    TRACE( "iface %p, asyncBlock %p, wait %d\n", iface, asyncBlock, wait );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XAsyncGetResultSize( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, SIZE_T *bufferSize )
 {
-    FIXME( "iface %p, asyncBlock %p, bufferSize %p stub!\n", iface, asyncBlock, bufferSize );
-    return E_NOTIMPL;
+    TRACE( "iface %p, asyncBlock %p, bufferSize %p\n", iface, asyncBlock, bufferSize );
+    if (bufferSize) *bufferSize = sizeof(void*);
+    return S_OK;
 }
 
 static void WINAPI x_threading_XAsyncCancel( IXThreadingImpl *iface, XAsyncBlock *asyncBlock )
 {
-    FIXME( "iface %p, asyncBlock %p stub!\n", iface, asyncBlock );
+    TRACE( "iface %p, asyncBlock %p\n", iface, asyncBlock );
 }
 
 static HRESULT WINAPI x_threading_XAsyncRun( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, XAsyncWork *work )
 {
-    FIXME( "iface %p, asyncBlock %p, work %p stub!\n", iface, asyncBlock, work );
-    return E_NOTIMPL;
+    TRACE( "iface %p, asyncBlock %p, work %p\n", iface, asyncBlock, work );
+    if (work) work(asyncBlock);
+    if (asyncBlock && asyncBlock->callback) asyncBlock->callback(asyncBlock);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XAsyncBegin( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, void *context, const void *identity, const char *identityName, XAsyncProvider *provider )
 {
-    FIXME( "iface %p, asyncBlock %p, context %p, identity %p, identityName %s, provider %p stub!\n", iface, asyncBlock, context, identity, identityName, provider );
-    return E_NOTIMPL;
+    XAsyncProviderData data;
+    TRACE( "iface %p, asyncBlock %p, context %p, identity %p, identityName %s, provider %p\n", iface, asyncBlock, context, identity, identityName, provider );
+    memset(&data, 0, sizeof(data));
+    data.async = asyncBlock;
+    data.context = context;
+    if (provider)
+    {
+        provider(XAsyncOp_Begin, &data);
+    }
+    return S_OK;
 }
+
 
 static HRESULT WINAPI __PADDING__( IXThreadingImpl *iface )
 {
     WARN( "iface %p padding function called! It's unknown what this function does.\n", iface );
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XAsyncSchedule( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, UINT32 delayInMs )
 {
-    FIXME( "iface %p, asyncBlock %p, delayInMs %d stub!\n", iface, asyncBlock, delayInMs );
-    return E_NOTIMPL;
+    TRACE( "iface %p, asyncBlock %p, delayInMs %d\n", iface, asyncBlock, delayInMs );
+    if (asyncBlock && asyncBlock->callback) asyncBlock->callback(asyncBlock);
+    return S_OK;
 }
 
 static void WINAPI x_threading_XAsyncComplete( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, HRESULT result, SIZE_T requiredBufferSize )
 {
-    FIXME( "iface %p, asyncBlock %p, result %#lx, requiredBufferSize %Iu stub!\n", iface, asyncBlock, result, requiredBufferSize );
+    TRACE( "iface %p, asyncBlock %p, result %#lx, requiredBufferSize %Iu\n", iface, asyncBlock, result, requiredBufferSize );
+    if (asyncBlock && asyncBlock->callback) asyncBlock->callback(asyncBlock);
 }
 
 static HRESULT WINAPI x_threading_XAsyncGetResult( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, const void *identity, SIZE_T bufferSize, void *buffer, SIZE_T *bufferUsed )
 {
-    FIXME( "iface %p asyncBlock %p, identity %p, bufferSize %Iu, buffer %p, bufferUsed %p stub!\n", iface, asyncBlock, identity, bufferSize, buffer, bufferUsed );
-    return E_NOTIMPL;
+    TRACE( "iface %p asyncBlock %p, identity %p, bufferSize %Iu, buffer %p, bufferUsed %p\n", iface, asyncBlock, identity, bufferSize, buffer, bufferUsed );
+    if (bufferUsed) *bufferUsed = bufferSize;
+    return S_OK;
 }
+
+
+struct task_queue
+{
+    XTaskQueueDispatchMode work_mode;
+    XTaskQueueDispatchMode comp_mode;
+    LONG ref;
+};
+
+static struct task_queue default_process_queue = { 0, 0, 1 };
 
 static HRESULT WINAPI x_threading_XTaskQueueCreate( IXThreadingImpl *iface, XTaskQueueDispatchMode workDispatchMode, XTaskQueueDispatchMode completionDispatchMode, XTaskQueueHandle *queue )
 {
-    FIXME( "iface %p, workDispatchMode %d, completionDispatchMode %d, queue %p stub!\n", iface, workDispatchMode, completionDispatchMode, queue );
-    return E_NOTIMPL;
+    struct task_queue *tq;
+    TRACE( "iface %p, workDispatchMode %d, completionDispatchMode %d, queue %p\n", iface, workDispatchMode, completionDispatchMode, queue );
+    if (!queue) return E_POINTER;
+    tq = malloc( sizeof(*tq) );
+    if (!tq) return E_OUTOFMEMORY;
+    tq->work_mode = workDispatchMode;
+    tq->comp_mode = completionDispatchMode;
+    tq->ref = 1;
+    *queue = (XTaskQueueHandle)tq;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueCreateComposite( IXThreadingImpl *iface, XTaskQueuePortHandle workPort, XTaskQueuePortHandle completionPort, XTaskQueueHandle *queue )
 {
-    FIXME( "iface %p, workPort %p, completionPort %p, queue %p stub!\n", iface, workPort, completionPort, queue );
-    return E_NOTIMPL;
+    struct task_queue *tq;
+    TRACE( "iface %p, workPort %p, completionPort %p, queue %p\n", iface, workPort, completionPort, queue );
+    if (!queue) return E_POINTER;
+    tq = malloc( sizeof(*tq) );
+    if (!tq) return E_OUTOFMEMORY;
+    tq->work_mode = 0;
+    tq->comp_mode = 0;
+    tq->ref = 1;
+    *queue = (XTaskQueueHandle)tq;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueGetPort( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, XTaskQueuePortHandle *portHandle )
 {
-    FIXME( "iface %p, queue %p, port %d, portHandle %p stub!\n", iface, queue, port, portHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, port %d, portHandle %p\n", iface, queue, port, portHandle );
+    if (!portHandle) return E_POINTER;
+    *portHandle = (XTaskQueuePortHandle)queue;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueDuplicateHandle( IXThreadingImpl *iface, XTaskQueueHandle queueHandle, XTaskQueueHandle *duplicatedHandle )
 {
-    FIXME( "iface %p, queueHandle %p, duplicatedHandle %p stub!\n", iface, queueHandle, duplicatedHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queueHandle %p, duplicatedHandle %p\n", iface, queueHandle, duplicatedHandle );
+    if (!duplicatedHandle) return E_POINTER;
+    if (queueHandle && queueHandle != (XTaskQueueHandle)&default_process_queue)
+    {
+        struct task_queue *tq = (struct task_queue *)queueHandle;
+        InterlockedIncrement( &tq->ref );
+    }
+    *duplicatedHandle = queueHandle;
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_threading_XTaskQueueDispatch( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, UINT32 timeoutInMs )
 {
-    FIXME( "iface %p, queue %p, port %d, timeoutInMs %d stub!\n", iface, queue, port, timeoutInMs );
+    TRACE( "iface %p, queue %p, port %d, timeoutInMs %d\n", iface, queue, port, timeoutInMs );
     return FALSE;
 }
 
 static void WINAPI x_threading_XTaskQueueCloseHandle( IXThreadingImpl *iface, XTaskQueueHandle queue )
 {
-    FIXME( "iface %p, queue %p stub!\n", iface, queue );
+    TRACE( "iface %p, queue %p\n", iface, queue );
+    if (queue && queue != (XTaskQueueHandle)&default_process_queue)
+    {
+        struct task_queue *tq = (struct task_queue *)queue;
+        if (InterlockedDecrement( &tq->ref ) == 0)
+        {
+            free( tq );
+        }
+    }
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, void *callbackContext, XTaskQueueCallback *callback )
 {
-    FIXME( "iface %p, queue %p, port %d, callbackContext %p, callback %p stub!\n", iface, queue, port, callbackContext, callback );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, port %d, callbackContext %p, callback %p\n", iface, queue, port, callbackContext, callback );
+    if (callback)
+    {
+        callback( callbackContext, FALSE );
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueSubmitDelayedCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, UINT32 delayMs, void *callbackContext, XTaskQueueCallback *callback )
 {
-    FIXME( "iface %p, queue %p, port %d, delayMs %d, callbackContext %p, callback %p stub!\n", iface, queue, port, delayMs, callbackContext, callback );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, port %d, delayMs %d, callbackContext %p, callback %p\n", iface, queue, port, delayMs, callbackContext, callback );
+    if (callback)
+    {
+        callback( callbackContext, FALSE );
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueRegisterWaiter( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, HANDLE waitHandle, void *callbackContext, XTaskQueueCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, port %d, waitHandle %p, callbackContext %p, callback %p, token %p stub!\n", iface, queue, port, waitHandle, callbackContext, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, port %d, waitHandle %p, callbackContext %p, callback %p, token %p\n", iface, queue, port, waitHandle, callbackContext, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static void WINAPI x_threading_XTaskQueueUnregisterWaiter( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueueRegistrationToken token )
 {
-    FIXME( "iface %p, queue %p, token %p stub!\n", iface, queue, &token );
+    TRACE( "iface %p, queue %p, token %p\n", iface, queue, &token );
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueTerminate( IXThreadingImpl *iface, XTaskQueueHandle queue, BOOLEAN wait, void *callbackContext, XTaskQueueTerminatedCallback *callback )
 {
-    FIXME( "iface %p, queue %p, wait %d, callbackContext %p, callback %p stub!\n", iface, queue, wait, callbackContext, callback );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, wait %d, callbackContext %p, callback %p\n", iface, queue, wait, callbackContext, callback );
+    if (callback) callback( callbackContext );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueRegisterMonitor( IXThreadingImpl *iface, XTaskQueueHandle queue, void *callbackContext, XTaskQueueMonitorCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, callbackContext %p, callback %p, token %p stub!\n", iface, queue, callbackContext, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, callbackContext %p, callback %p, token %p\n", iface, queue, callbackContext, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static void WINAPI x_threading_XTaskQueueUnregisterMonitor( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueueRegistrationToken token )
 {
-    FIXME( "iface %p, queue %p, token %p stub!\n", iface, queue, &token );
+    TRACE( "iface %p, queue %p, token %p\n", iface, queue, &token );
 }
 
 static BOOLEAN WINAPI x_threading_XTaskQueueGetCurrentProcessTaskQueue( IXThreadingImpl *iface, XTaskQueueHandle *queue )
 {
-    FIXME( "iface %p, queue %p stub!\n", iface, queue );
-    return FALSE;
+    TRACE( "iface %p, queue %p\n", iface, queue );
+    if (!queue) return FALSE;
+    *queue = (XTaskQueueHandle)&default_process_queue;
+    return TRUE;
 }
 
 static void WINAPI x_threading_XTaskQueueSetCurrentProcessTaskQueue( IXThreadingImpl *iface, XTaskQueueHandle queue )
 {
-    FIXME( "iface %p, queue %p stub!\n", iface, queue );
+    TRACE( "iface %p, queue %p\n", iface, queue );
 }
+
 
 static HRESULT WINAPI x_threading_XThreadSetTimeSensitive( IXThreadingImpl *iface, BOOLEAN isTimeSensitiveThread )
 {

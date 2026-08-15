@@ -89,34 +89,47 @@ static HRESULT WINAPI x_system_XSystemGetConsoleId( IXSystemImpl5 *iface, INT32 
     if (consoleIdSize < XSystemConsoleIdBytes)
         return HRESULT_FROM_WIN32( ERROR_INSUFFICIENT_BUFFER );
 
-    strcpy_s( consoleId, consoleIdSize, Id );
+    snprintf( consoleId, consoleIdSize, "%s", Id );
     *consoleIdUsed = strlen( Id ) + 1;
     return S_OK;
 }
 
 static HRESULT WINAPI x_system_XSystemGetXboxLiveSandboxId( IXSystemImpl5 *iface, INT32 sandboxIdSize, char *sandboxId, SIZE_T *sandboxIdUsed )
 {
-    /* Always assume RETAIL environment for Wine */
     const char *Id = "RETAIL";
-
     TRACE( "iface %p, sandboxIdSize %d, sandboxId %p, sandboxIdUsed %p\n", iface, sandboxIdSize, sandboxId, sandboxIdUsed );
 
-    if (!sandboxId || !sandboxIdUsed)
-        return E_POINTER;
+    if (sandboxIdUsed)
+        *sandboxIdUsed = strlen( Id ) + 1;
 
-    if (sandboxIdSize < XSystemXboxLiveSandboxIdMaxBytes)
+    if (!sandboxId)
+        return S_OK;
+
+    if (sandboxIdSize < strlen( Id ) + 1)
         return HRESULT_FROM_WIN32( ERROR_INSUFFICIENT_BUFFER );
 
-    strcpy_s( sandboxId, sandboxIdSize, Id );
-    *sandboxIdUsed = strlen( Id ) + 1;
+    snprintf( sandboxId, sandboxIdSize, "%s", Id );
     return S_OK;
 }
 
 static HRESULT WINAPI x_system_XSystemGetAppSpecificDeviceId( IXSystemImpl5 *iface, INT32 appSpecificDeviceIdSize, char *appSpecificDeviceId, SIZE_T *appSpecificDeviceIdUsed )
 {
-    FIXME( "iface %p, appSpecificDeviceIdSize %d, appSpecificDeviceId %p, appSpecificDeviceIdUsed %p stub!\n", iface, appSpecificDeviceIdSize, appSpecificDeviceId, appSpecificDeviceIdUsed );
-    return E_NOTIMPL;
+    const char *Id = "00000000000000000000000000000000000000000000";
+    TRACE( "iface %p, appSpecificDeviceIdSize %d, appSpecificDeviceId %p, appSpecificDeviceIdUsed %p\n", iface, appSpecificDeviceIdSize, appSpecificDeviceId, appSpecificDeviceIdUsed );
+
+    if (appSpecificDeviceIdUsed)
+        *appSpecificDeviceIdUsed = strlen( Id ) + 1;
+
+    if (!appSpecificDeviceId)
+        return S_OK;
+
+    if (appSpecificDeviceIdSize < strlen( Id ) + 1)
+        return HRESULT_FROM_WIN32( ERROR_INSUFFICIENT_BUFFER );
+
+    snprintf( appSpecificDeviceId, appSpecificDeviceIdSize, "%s", Id );
+    return S_OK;
 }
+
 
 static HRESULT WINAPI x_system_XSystemHandleTrack( IXSystemImpl5 *iface, XSystemHandleCallback callback, void *context )
 {

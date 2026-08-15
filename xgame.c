@@ -72,9 +72,20 @@ static ULONG WINAPI x_game_Release( IXGameImpl3 *iface )
 
 static HRESULT WINAPI x_game_XGameGetXboxTitleId( IXGameImpl3 *iface, UINT32 *titleId )
 {
-    FIXME( "iface %p, titleId %p stub!\n", iface, titleId );
-    return E_NOTIMPL;
+    const char *env_title_id;
+    TRACE( "iface %p, titleId %p\n", iface, titleId );
+    if (!titleId) return E_POINTER;
+
+    env_title_id = getenv("XODUS_TITLE_ID");
+    if (env_title_id && *env_title_id)
+    {
+        *titleId = (UINT32)strtoul(env_title_id, NULL, 16);
+        return S_OK;
+    }
+    *titleId = 0x77BB5AFB;
+    return S_OK;
 }
+
 
 static void WINAPI x_game_XLaunchNewGame( IXGameImpl3 *iface, const char *exePath, const char *args, XUserHandle defaultUser )
 {

@@ -81,21 +81,53 @@ static ULONG WINAPI x_user_Release( IXUserImpl6 *iface )
     return ref;
 }
 
+static HRESULT WINAPI dummy_user_func(void *self) { return S_OK; }
+static void *dummy_user_vtable[64] = {
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+    dummy_user_func, dummy_user_func, dummy_user_func, dummy_user_func,
+};
+
+struct user_handle_data {
+    void **vtable;
+    UINT64 xuid;
+    UINT32 local_id;
+    UINT32 state;
+    char gamertag[64];
+    void *extra[32];
+};
+
+static struct user_handle_data default_user_obj = {
+    dummy_user_vtable,
+    0x0009000000000001ULL,
+    1,
+    0,
+    "Player"
+};
+
+
 static HRESULT WINAPI x_user_XUserDuplicateHandle( IXUserImpl6 *iface, XUserHandle handle, XUserHandle *duplicatedHandle )
 {
-    FIXME( "iface %p, handle %p, duplicatedHandle %p stub!\n", iface, handle, duplicatedHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, handle %p, duplicatedHandle %p\n", iface, handle, duplicatedHandle );
+    if (!duplicatedHandle) return E_POINTER;
+    *duplicatedHandle = (handle) ? handle : (XUserHandle)&default_user_obj;
+    return S_OK;
 }
 
 static void WINAPI x_user_XUserCloseHandle( IXUserImpl6 *iface, XUserHandle user )
 {
-    FIXME( "iface %p, user %p stub!\n", iface, user );
+    TRACE( "iface %p, user %p\n", iface, user );
 }
 
 static INT32 WINAPI x_user_XUserCompare( IXUserImpl6 *iface, XUserHandle user1, XUserHandle user2 )
 {
-    FIXME( "iface %p, user1 %p, user2 %p stub!\n", iface, user1, user2 );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user1 %p, user2 %p\n", iface, user1, user2 );
+    return (user1 == user2) ? 0 : ((user1 < user2) ? -1 : 1);
 }
 
 static HRESULT WINAPI x_user_XUserGetMaxUsers( IXUserImpl6 *iface, UINT32 *maxUsers )
@@ -107,51 +139,80 @@ static HRESULT WINAPI x_user_XUserGetMaxUsers( IXUserImpl6 *iface, UINT32 *maxUs
 
 static HRESULT WINAPI x_user_XUserAddAsync( IXUserImpl6 *iface, XUserAddOptions options, XAsyncBlock *async )
 {
-    FIXME( "iface %p, options %d, async %p stub!\n", iface, options, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, options %d, async %p.\n", iface, options, async );
+    if (async && async->callback)
+    {
+        async->callback(async);
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_XUserAddResult( IXUserImpl6 *iface, XAsyncBlock *async, XUserHandle *newUser )
 {
-    FIXME( "iface %p, async %p, newUser %p stub!\n", iface, async, newUser );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, newUser %p.\n", iface, async, newUser );
+    if (newUser)
+    {
+        *newUser = (XUserHandle)&default_user_obj;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_user_XUserGetLocalId( IXUserImpl6 *iface, XUserHandle user, XUserLocalId *userLocalId )
 {
-    FIXME( "iface %p, user %p, userLocalId %p stub!\n", iface, user, userLocalId );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, userLocalId %p.\n", iface, user, userLocalId );
+    if (userLocalId)
+    {
+        userLocalId->value = 1;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_user_XUserFindUserByLocalId( IXUserImpl6 *iface, XUserLocalId userLocalId, XUserHandle *handle )
 {
-    FIXME( "iface %p, userLocalId %p, handle %p stub!\n", iface, &userLocalId, handle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, userLocalId %llu, handle %p\n", iface, (unsigned long long)userLocalId.value, handle );
+    if (!handle) return E_POINTER;
+    *handle = (XUserHandle)&default_user_obj;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_XUserGetId( IXUserImpl6 *iface, XUserHandle user, UINT64 *userId )
 {
-    FIXME( "iface %p, user %p, userId %p stub!\n", iface, user, userId );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, userId %p.\n", iface, user, userId );
+    if (userId)
+    {
+        *userId = default_user_obj.xuid;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_user_XUserFindUserById( IXUserImpl6 *iface, UINT64 userId, XUserHandle *handle )
 {
-    FIXME( "iface %p, userId %llu, handle %p stub!\n", iface, userId, handle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, userId %llu, handle %p\n", iface, (unsigned long long)userId, handle );
+    if (!handle) return E_POINTER;
+    *handle = (XUserHandle)&default_user_obj;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_XUserGetIsGuest( IXUserImpl6 *iface, XUserHandle user, BOOLEAN *isGuest )
 {
-    FIXME( "iface %p, user %p, isGuest %p stub!\n", iface, user, isGuest );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, isGuest %p\n", iface, user, isGuest );
+    if (!isGuest) return E_POINTER;
+    *isGuest = FALSE;
+    return S_OK;
 }
+
 
 static HRESULT WINAPI x_user_XUserGetState( IXUserImpl6 *iface, XUserHandle user, XUserState *state )
 {
-    FIXME( "iface %p, user %p, state %p stub!\n", iface, user, state );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, state %p\n", iface, user, state );
+    if (!state) return E_POINTER;
+    *state = XUserState_SignedIn;
+    return S_OK;
 }
+
 
 static HRESULT WINAPI __PADDING__( IXUserImpl6 *iface )
 {
@@ -161,63 +222,111 @@ static HRESULT WINAPI __PADDING__( IXUserImpl6 *iface )
 
 static HRESULT WINAPI x_user_XUserGetGamerPictureAsync( IXUserImpl6 *iface, XUserHandle user, XUserGamerPictureSize pictureSize, XAsyncBlock *async )
 {
-    FIXME( "iface %p, user %p, pictureSize %d, async %p stub!\n", iface, user, pictureSize, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, pictureSize %d, async %p.\n", iface, user, pictureSize, async );
+    if (async && async->callback)
+    {
+        async->callback(async);
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_XUserGetGamerPictureResultSize( IXUserImpl6 *iface, XAsyncBlock *async, SIZE_T *bufferSize )
 {
-    FIXME( "iface %p, async %p, bufferSize %p stub!\n", iface, async, bufferSize );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, bufferSize %p.\n", iface, async, bufferSize );
+    if (bufferSize)
+    {
+        *bufferSize = 4; /* PNG header length */
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_user_XUserGetGamerPictureResult( IXUserImpl6 *iface, XAsyncBlock *async, SIZE_T bufferSize, void *buffer, SIZE_T *bufferUsed )
 {
-    FIXME( "iface %p, async %p, bufferSize %Iu, buffer %p, bufferUsed %p stub!\n", iface, async, bufferSize, buffer, bufferUsed );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, bufferSize %Iu, buffer %p, bufferUsed %p.\n", iface, async, bufferSize, buffer, bufferUsed );
+    return ipc_xuser_get_gamer_picture(1, 0, buffer, bufferSize, bufferUsed);
 }
 
 static HRESULT WINAPI x_user_XUserGetAgeGroup( IXUserImpl6 *iface, XUserHandle user, XUserAgeGroup *ageGroup )
 {
-    FIXME( "iface %p, user %p, ageGroup %p stub!\n", iface, user, ageGroup );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, ageGroup %p.\n", iface, user, ageGroup );
+    if (ageGroup)
+    {
+        *ageGroup = XUserAgeGroup_Adult;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_user_XUserCheckPrivilege( IXUserImpl6 *iface, XUserHandle user, XUserPrivilegeOptions options, XUserPrivilege privilege, BOOLEAN *hasPrivilege, XUserPrivilegeDenyReason *reason )
 {
-    FIXME( "iface %p, user %p, options %d, privilege %d, hasPrivilege %p, reason %p stub!\n", iface, user, options, privilege, hasPrivilege, reason );
-    return E_NOTIMPL;
+    BOOL has_priv = FALSE;
+    UINT32 deny_reason = 0;
+    HRESULT hr;
+    TRACE( "iface %p, user %p, options %d, privilege %d, hasPrivilege %p, reason %p.\n", iface, user, options, privilege, hasPrivilege, reason );
+    hr = ipc_xuser_check_privilege(1, (UINT32)privilege, &has_priv, &deny_reason);
+    if (hasPrivilege) *hasPrivilege = has_priv ? TRUE : FALSE;
+    if (reason) *reason = (XUserPrivilegeDenyReason)deny_reason;
+    return hr;
 }
 
 static HRESULT WINAPI x_user_XUserResolvePrivilegeWithUiAsync( IXUserImpl6 *iface, XUserHandle user, XUserPrivilegeOptions options, XUserPrivilege privilege, XAsyncBlock *async )
 {
-    FIXME( "iface %p, user %p, options %d, privilege %d, async %p stub!\n", iface, user, options, privilege, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, options %d, privilege %d, async %p.\n", iface, user, options, privilege, async );
+    if (async && async->callback) async->callback(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_XUserResolvePrivilegeWithUiResult( IXUserImpl6 *iface, XAsyncBlock *async )
 {
-    FIXME( "iface %p, async %p stub!\n", iface, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p.\n", iface, async );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureAsync( IXUserImpl6 *iface, XUserHandle user, XUserGetTokenAndSignatureOptions options, const char *method, const char *url, SIZE_T headerCount, const XUserGetTokenAndSignatureHttpHeader *headers, SIZE_T bodySize, const void *bodyBuffer, XAsyncBlock *async )
 {
-    FIXME( "iface %p, user %p, options %d, method %s, url %s, headerCount %Iu, headers %p, bodySize %Iu, bodyBuffer %p, async %p stub!\n", iface, user, options, debugstr_a( method ), debugstr_a( url ), headerCount, headers, bodySize, bodyBuffer, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, options %d, method %s, url %s, headerCount %Iu, headers %p, bodySize %Iu, bodyBuffer %p, async %p.\n", iface, user, options, debugstr_a( method ), debugstr_a( url ), headerCount, headers, bodySize, bodyBuffer, async );
+    if (async && async->callback) async->callback(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResultSize( IXUserImpl6 *iface, XAsyncBlock *async, SIZE_T *bufferSize )
 {
-    FIXME( "iface %p, async %p, bufferSize %p stub!\n", iface, async, bufferSize );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, bufferSize %p.\n", iface, async, bufferSize );
+    if (bufferSize)
+    {
+        *bufferSize = sizeof(XUserGetTokenAndSignatureData) + 256;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResult( IXUserImpl6 *iface, XAsyncBlock *async, SIZE_T bufferSize, void *buffer, XUserGetTokenAndSignatureData **ptrToBuffer, SIZE_T *bufferUsed )
 {
-    FIXME( "iface %p, async %p, bufferSize %Iu, buffer %p, ptrToBuffer %p, bufferUsed %p stub!\n", iface, async, bufferSize, buffer, ptrToBuffer, bufferUsed );
-    return E_NOTIMPL;
+    XUserGetTokenAndSignatureData *data;
+    char *str_ptr;
+
+    TRACE( "iface %p, async %p, bufferSize %Iu, buffer %p, ptrToBuffer %p, bufferUsed %p.\n", iface, async, bufferSize, buffer, ptrToBuffer, bufferUsed );
+
+    if (!buffer || bufferSize < sizeof(XUserGetTokenAndSignatureData) + 64)
+        return E_INVALIDARG;
+
+    data = (XUserGetTokenAndSignatureData *)buffer;
+    str_ptr = (char *)buffer + sizeof(XUserGetTokenAndSignatureData);
+
+    data->tokenSize = 15;
+    data->signatureSize = 8;
+    data->token = str_ptr;
+    data->signature = str_ptr + 32;
+
+    ipc_xuser_get_token(1, "http://xboxlive.com", (char *)data->token, 32, (char *)data->signature, 32);
+
+    if (ptrToBuffer) *ptrToBuffer = data;
+    if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureData) + 64;
+
+    return S_OK;
 }
+
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Async( IXUserImpl6 *iface, XUserHandle user, XUserGetTokenAndSignatureOptions options, const WCHAR *method, const WCHAR *url, SIZE_T headerCount, const XUserGetTokenAndSignatureUtf16HttpHeader *headers, SIZE_T bodySize, const void *bodyBuffer, XAsyncBlock *async )
 {
@@ -263,14 +372,15 @@ static HRESULT WINAPI x_user_XUserResolveIssueWithUiUtf16Result( IXUserImpl6 *if
 
 static HRESULT WINAPI x_user_XUserRegisterForChangeEvent( IXUserImpl6 *iface, XTaskQueueHandle queue, void *context, XUserChangeEventCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_user_XUserUnregisterForChangeEvent( IXUserImpl6 *iface, XTaskQueueRegistrationToken token, BOOLEAN wait )
 {
-    FIXME( "iface %p, token %p, wait %d stub!\n", iface, &token, wait );
-    return FALSE;
+    TRACE( "iface %p, token %p, wait %d\n", iface, &token, wait );
+    return TRUE;
 }
 
 static HRESULT WINAPI x_user_XUserGetSignOutDeferral( IXUserImpl6 *iface, XUserSignOutDeferralHandle *deferral )
@@ -448,9 +558,16 @@ static ULONG WINAPI x_user_gamertag_Release( IXUserGamertagImpl *iface )
 
 static HRESULT WINAPI x_user_gamertag_XUserGetGamertag( IXUserGamertagImpl *iface, XUserHandle user, XUserGamertagComponent gamertagComponent, SIZE_T gamertagSize, char *gamertag, SIZE_T *gamertagUsed )
 {
-    FIXME( "iface %p, user %p, gamertagComponent %d, gamertagSize %Iu, gamertag %p, gamertagUsed %p stub!\n", iface, user, gamertagComponent, gamertagSize, gamertag, gamertagUsed );
-    return E_NOTIMPL;
+    const char *tag = "Player";
+    SIZE_T len = strlen(tag) + 1;
+    TRACE( "iface %p, user %p, gamertagComponent %d, gamertagSize %Iu, gamertag %p, gamertagUsed %p\n", iface, user, gamertagComponent, gamertagSize, gamertag, gamertagUsed );
+    if (gamertagUsed) *gamertagUsed = len;
+    if (!gamertag) return S_OK;
+    if (gamertagSize < len) return HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
+    strcpy(gamertag, tag);
+    return S_OK;
 }
+
 
 static const struct IXUserGamertagImplVtbl x_user_gamertag_vtbl =
 {

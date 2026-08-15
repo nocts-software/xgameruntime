@@ -73,39 +73,48 @@ static ULONG WINAPI x_game_ui_Release( IXGameUiImpl4 *iface )
 
 static HRESULT WINAPI x_game_ui_XGameUiShowMessageDialogAsync( IXGameUiImpl4 *iface, XAsyncBlock *async, const char *titleText, const char *contentText, const char *firstButtonText, const char *secondButtonText, const char *thirdButtonText, XGameUiMessageDialogButton defaultButton, XGameUiMessageDialogButton cancelButton )
 {
-    FIXME( "iface %p, async %p, titleText %s, contentText %s, firstButtonText %s, secondButtonText %s, thirdButtonText %s, defaultButton %d, cancelButton %d stub!\n", iface, async, debugstr_a( titleText ), debugstr_a( contentText ), debugstr_a( firstButtonText ), debugstr_a( secondButtonText ), debugstr_a( thirdButtonText ), defaultButton, cancelButton );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, titleText %s, contentText %s.\n", iface, async, debugstr_a( titleText ), debugstr_a( contentText ) );
+    if (async && async->callback) async->callback(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_game_ui_XGameUiShowMessageDialogResult( IXGameUiImpl4 *iface, XAsyncBlock *async, XGameUiMessageDialogButton *resultButton )
 {
-    FIXME( "iface %p, async %p, resultButton %p stub!\n", iface, async, resultButton );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, resultButton %p.\n", iface, async, resultButton );
+    if (resultButton)
+    {
+        *resultButton = XGameUiMessageDialogButton_First;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static HRESULT WINAPI x_game_ui_XGameUiShowSendGameInviteAsync( IXGameUiImpl4 *iface, XAsyncBlock *async, XUserHandle requestingUser, const char *sessionConfigurationId, const char *sessionTemplateName, const char *sessionId, const char *invitationText, const char *customActivationContext )
 {
-    FIXME( "iface %p, async %p, requestingUser %p, sessionConfigurationId %s, sessionTemplateName %s, sessionId %s, invitationText %s, customActivationContext %s stub!\n", iface, async, requestingUser, debugstr_a( sessionConfigurationId ), debugstr_a( sessionTemplateName ), debugstr_a( sessionId ), debugstr_a( invitationText ), debugstr_a( customActivationContext ) );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, requestingUser %p, sessionId %s.\n", iface, async, requestingUser, debugstr_a( sessionId ) );
+    if (async && async->callback) async->callback(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_game_ui_XGameUiShowSendGameInviteResult( IXGameUiImpl4 *iface, XAsyncBlock *async )
 {
-    FIXME( "iface %p async %p stub!\n", iface, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p async %p.\n", iface, async );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_game_ui_XGameUiShowPlayerProfileCardAsync( IXGameUiImpl4 *iface, XAsyncBlock *async, XUserHandle requestingUser, UINT64 targetPlayer )
 {
-    FIXME( "iface %p, async %p, requestingUser %p, targetPlayer %llu stub!\n", iface, async, requestingUser, targetPlayer );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, requestingUser %p, targetPlayer %llu.\n", iface, async, requestingUser, targetPlayer );
+    if (async && async->callback) async->callback(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_game_ui_XGameUiShowPlayerProfileCardResult( IXGameUiImpl4 *iface, XAsyncBlock *async )
 {
-    FIXME( "iface %p, async %p stub!\n", iface, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p.\n", iface, async );
+    return S_OK;
 }
+
 
 static HRESULT WINAPI x_game_ui_XGameUiShowAchievementsAsync( IXGameUiImpl4 *iface, XAsyncBlock *async, XUserHandle requestingUser, UINT32 titleId )
 {

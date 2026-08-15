@@ -96,8 +96,38 @@ static void WINAPI x_package_XPackageCloseInstallationMonitorHandle( IXPackageIm
 
 static void WINAPI x_package_XPackageGetInstallationProgress( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor, XPackageInstallationProgress *progress )
 {
-    FIXME( "iface %p, installationMonitor %p, progress %p stub!\n", iface, installationMonitor, progress );
+    TRACE( "iface %p, installationMonitor %p, progress %p.\n", iface, installationMonitor, progress );
+    if (progress)
+    {
+        progress->totalBytes = 1000000000;
+        progress->installedBytes = 1000000000;
+        progress->completed = TRUE;
+    }
 }
+
+static HRESULT WINAPI x_package_XPackageGetMountPathSize( IXPackageImpl4 *iface, XPackageMountHandle mount, SIZE_T *pathSize )
+{
+    DWORD len = GetCurrentDirectoryA(0, NULL);
+    TRACE( "iface %p, mount %p, pathSize %p.\n", iface, mount, pathSize );
+    if (pathSize)
+    {
+        *pathSize = len > 0 ? len : 1;
+        return S_OK;
+    }
+    return E_POINTER;
+}
+
+static HRESULT WINAPI x_package_XPackageGetMountPath( IXPackageImpl4 *iface, XPackageMountHandle mount, SIZE_T pathSize, char *path )
+{
+    TRACE( "iface %p, mount %p, pathSize %Iu, path %p.\n", iface, mount, pathSize, path );
+    if (path && pathSize > 0)
+    {
+        GetCurrentDirectoryA((DWORD)pathSize, path);
+        return S_OK;
+    }
+    return E_POINTER;
+}
+
 
 static BOOLEAN WINAPI x_package_XPackageUpdateInstallationMonitor( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor )
 {
@@ -192,18 +222,6 @@ static BOOLEAN WINAPI x_package_XPackageUnregisterPackageInstalled( IXPackageImp
 static HRESULT WINAPI __PADDING_3__( IXPackageImpl4 *iface )
 {
     WARN( "iface %p padding function called! It's unknown what this function does.\n", iface );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI x_package_XPackageGetMountPathSize( IXPackageImpl4 *iface, XPackageMountHandle mount, SIZE_T *pathSize )
-{
-    FIXME( "iface %p, mount %p, pathSize %p stub!\n", iface, mount, pathSize );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI x_package_XPackageGetMountPath( IXPackageImpl4 *iface, XPackageMountHandle mount, SIZE_T pathSize, char *path )
-{
-    FIXME( "iface %p, mount %p, pathSize %Iu, path %p stub!\n", iface, mount, pathSize, path );
     return E_NOTIMPL;
 }
 
@@ -359,3 +377,93 @@ static struct x_package x_package =
 };
 
 IXPackageImpl *x_package_impl = (IXPackageImpl *)&x_package.IXPackageImpl4_iface;
+
+/* WinRT IPackageId & IPackage COM implementation */
+static HRESULT WINAPI winrt_package_id_get_Name(void *iface, void **name)
+{
+    TRACE("winrt_package_id_get_Name iface %p, name %p.\n", iface, name);
+    if (!name) return E_POINTER;
+    *name = NULL;
+    return S_OK;
+}
+
+static HRESULT WINAPI winrt_package_id_get_Publisher(void *iface, void **publisher)
+{
+    TRACE("winrt_package_id_get_Publisher iface %p, publisher %p.\n", iface, publisher);
+    if (!publisher) return E_POINTER;
+    *publisher = NULL;
+    return S_OK;
+}
+
+static HRESULT WINAPI winrt_package_id_get_Version(void *iface, void *version)
+{
+    TRACE("winrt_package_id_get_Version iface %p, version %p.\n", iface, version);
+    return S_OK;
+}
+
+static HRESULT WINAPI winrt_package_id_get_FamilyName(void *iface, void **familyName)
+{
+    TRACE("winrt_package_id_get_FamilyName iface %p, familyName %p.\n", iface, familyName);
+    if (!familyName) return E_POINTER;
+    *familyName = NULL;
+    return S_OK;
+}
+
+static HRESULT WINAPI winrt_package_id_QueryInterface(void *iface, REFIID iid, void **out)
+{
+    TRACE("winrt_package_id_QueryInterface iface %p, iid %s, out %p.\n", iface, debugstr_guid(iid), out);
+    if (!out) return E_POINTER;
+    *out = iface;
+    return S_OK;
+}
+
+static const void *winrt_package_id_vtbl[] = {
+    winrt_package_id_QueryInterface,
+    x_package_AddRef,
+    x_package_Release,
+    winrt_package_id_get_Name,
+    winrt_package_id_get_Name,
+    winrt_package_id_get_Name,
+    winrt_package_id_get_Name,
+    winrt_package_id_get_Publisher,
+    winrt_package_id_get_Version,
+    winrt_package_id_get_Name,
+    winrt_package_id_get_FamilyName,
+    winrt_package_id_get_Name
+};
+
+static struct {
+    const void **vtbl;
+} winrt_package_id_obj = { winrt_package_id_vtbl };
+
+static HRESULT WINAPI winrt_package_get_Id(void *iface, void **id)
+{
+    TRACE("winrt_package_get_Id iface %p, id %p.\n", iface, id);
+    if (!id) return E_POINTER;
+    *id = &winrt_package_id_obj;
+    return S_OK;
+}
+
+static const void *winrt_package_vtbl[] = {
+    winrt_package_id_QueryInterface,
+    x_package_AddRef,
+    x_package_Release,
+    winrt_package_get_Id,
+    winrt_package_get_Id,
+    winrt_package_get_Id,
+    winrt_package_get_Id,
+    winrt_package_get_Id,
+    winrt_package_get_Id,
+    winrt_package_get_Id
+};
+
+
+static struct {
+    const void **vtbl;
+} winrt_package_obj = { winrt_package_vtbl };
+
+void *get_winrt_package_factory(void)
+{
+    return &winrt_package_obj;
+}
+
