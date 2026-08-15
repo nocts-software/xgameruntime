@@ -128,8 +128,20 @@ To use `xgameruntime` with a game in Proton or Wine:
 
 ---
 
-## 📜 License & Acknowledgments
+## 📜 License & TL;DR
 
 This library is distributed under the **GNU Lesser General Public License v2.1 (LGPL-2.1)**. See [LICENSE](LICENSE) for details.
 
+### 📋 License Summary (TL;DR)
+
+| ✅ What you CAN do | ❌ What you CANNOT do | ⚠️ What you MUST do |
+|---|---|---|
+| • **Commercial Use**: Use and bundle in commercial software | • **Hold Liable**: Software provided without warranty | • **Disclose Library Changes**: Release modifications to `xgameruntime` |
+| • **Modification**: Freely modify the library's code | • **Close-Source the Library**: Re-license library as proprietary | • **Same License for Library**: Modified library stays LGPL-2.1 |
+| • **Distribution**: Distribute original or modified binaries | | • **Allow Relinking**: Users must be able to replace/update library |
+| • **Dynamic Linking**: Link with proprietary/open-source apps | | • **Include Notice**: Retain copyright and license notices |
+
+---
+
+### Acknowledgments
 Special thanks to the original [xodus-gaming](https://github.com/xodus-gaming) team for founding the project and pioneering open-source GDK runtime development for Wine.
