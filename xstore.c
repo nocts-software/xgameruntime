@@ -258,22 +258,32 @@ static HRESULT WINAPI x_store_XStoreCanAcquireLicenseForPackageResult( IXStoreIm
 
 static HRESULT WINAPI x_store_XStoreQueryGameLicenseAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XAsyncBlock *async )
 {
-    TRACE( "iface %p, storeContextHandle %p, async %p\n", iface, storeContextHandle, async );
+    fprintf(stderr, "[GDK XStore] XStoreQueryGameLicenseAsync called: storeContextHandle=%p, async=%p\n", storeContextHandle, async);
     complete_async(async);
     return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryGameLicenseResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreGameLicense *license )
 {
-    TRACE( "iface %p, async %p, license %p\n", iface, async, license );
+    const char *store_id = getenv("XODUS_STORE_ID");
     if (!license) return E_POINTER;
     memset(license, 0, sizeof(*license));
-    strcpy(license->skuStoreId, "9NBLGGH42CFD");
+    if (store_id && store_id[0])
+    {
+        lstrcpynA(license->skuStoreId, store_id, sizeof(license->skuStoreId));
+    }
+    else
+    {
+        strcpy(license->skuStoreId, "9P2N57MC619K");
+    }
     license->isActive = TRUE;
     license->isTrial = FALSE;
     license->isDiscLicense = FALSE;
     license->isTrialOwnedByThisUser = FALSE;
+    license->trialTimeRemainingInSeconds = 0;
     license->expirationDate = (time_t)0x7fffffff;
+    fprintf(stderr, "[GDK XStore] XStoreQueryGameLicenseResult: skuStoreId='%s', isActive=%d\n",
+            license->skuStoreId, license->isActive);
     return S_OK;
 }
 
