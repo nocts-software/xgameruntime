@@ -356,10 +356,19 @@ static const char *get_token_req_url(XAsyncBlock *async)
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureAsync( IXUserImpl6 *iface, XUserHandle user, XUserGetTokenAndSignatureOptions options, const char *method, const char *url, SIZE_T headerCount, const XUserGetTokenAndSignatureHttpHeader *headers, SIZE_T bodySize, const void *bodyBuffer, XAsyncBlock *async )
 {
+    SIZE_T i;
     ensure_user_info();
     register_token_req(async, method, url);
-    TRACE( "[GDK XUser] XUserGetTokenAndSignatureAsync: options=0x%x, method='%s', url='%s', async=%p\n",
-           options, method ? method : "", url ? url : "", async );
+    TRACE( "[GDK XUser] XUserGetTokenAndSignatureAsync: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
+           options, method ? method : "", url ? url : "", headerCount, bodySize, async );
+    for (i = 0; i < headerCount && headers; i++)
+    {
+        TRACE( "  Header[%zu]: '%s' = '%s'\n", i, headers[i].name ? headers[i].name : "", headers[i].value ? headers[i].value : "" );
+    }
+    if (bodySize > 0 && bodyBuffer)
+    {
+        TRACE( "  Body (len %zu): '%.*s'\n", bodySize, (int)(bodySize > 256 ? 256 : bodySize), (const char *)bodyBuffer );
+    }
     complete_async(async);
     return S_OK;
 }
@@ -397,10 +406,10 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResult( IXUserImpl6 *iface
 
     ipc_xuser_get_token(1, req_url, (char *)data->token, max_token_len, (char *)data->signature, max_sig_len);
 
-    data->tokenSize = strlen(data->token) + 1;
+    data->tokenSize = strlen(data->token);
     if (sig_ptr[0] != '\0')
     {
-        data->signatureSize = strlen(data->signature) + 1;
+        data->signatureSize = strlen(data->signature);
     }
     else
     {
@@ -412,23 +421,35 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResult( IXUserImpl6 *iface
            data->tokenSize, data->signatureSize, req_url );
 
     if (ptrToBuffer) *ptrToBuffer = data;
-    if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureData) + data->tokenSize + data->signatureSize;
+    if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureData) + (data->tokenSize + 1) + (data->signature ? data->signatureSize + 1 : 0);
 
     return S_OK;
 }
-
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Async( IXUserImpl6 *iface, XUserHandle user, XUserGetTokenAndSignatureOptions options, const WCHAR *method, const WCHAR *url, SIZE_T headerCount, const XUserGetTokenAndSignatureUtf16HttpHeader *headers, SIZE_T bodySize, const void *bodyBuffer, XAsyncBlock *async )
 {
     char method_a[64] = {0};
     char url_a[1024] = {0};
+    SIZE_T i;
     ensure_user_info();
     if (method && method[0]) WideCharToMultiByte(CP_UTF8, 0, method, -1, method_a, sizeof(method_a) - 1, NULL, NULL);
     if (url && url[0]) WideCharToMultiByte(CP_UTF8, 0, url, -1, url_a, sizeof(url_a) - 1, NULL, NULL);
 
     register_token_req(async, method_a, url_a);
-    TRACE( "[GDK XUser] XUserGetTokenAndSignatureUtf16Async: options=0x%x, method='%s', url='%s', async=%p\n",
-           options, method_a, url_a, async );
+    TRACE( "[GDK XUser] XUserGetTokenAndSignatureUtf16Async: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
+           options, method_a, url_a, headerCount, bodySize, async );
+    for (i = 0; i < headerCount && headers; i++)
+    {
+        char name_a[256] = {0};
+        char val_a[512] = {0};
+        if (headers[i].name) WideCharToMultiByte(CP_UTF8, 0, headers[i].name, -1, name_a, sizeof(name_a) - 1, NULL, NULL);
+        if (headers[i].value) WideCharToMultiByte(CP_UTF8, 0, headers[i].value, -1, val_a, sizeof(val_a) - 1, NULL, NULL);
+        TRACE( "  HeaderUtf16[%zu]: '%s' = '%s'\n", i, name_a, val_a );
+    }
+    if (bodySize > 0 && bodyBuffer)
+    {
+        TRACE( "  Body (len %zu): '%.*s'\n", bodySize, (int)(bodySize > 256 ? 256 : bodySize), (const char *)bodyBuffer );
+    }
     complete_async(async);
     return S_OK;
 }
@@ -449,8 +470,6 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
     WCHAR *token_w;
     WCHAR *sig_w;
     SIZE_T max_wchars;
-    SIZE_T token_count;
-    SIZE_T sig_count;
     const char *req_url = get_token_req_url(async);
 
     if (!buffer || bufferSize < sizeof(XUserGetTokenAndSignatureUtf16Data) + 256 * sizeof(WCHAR))
@@ -462,27 +481,27 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
 
     ipc_xuser_get_token(1, req_url, token_buf, sizeof(token_buf), sig_buf, sizeof(sig_buf));
 
-    token_count = (SIZE_T)MultiByteToWideChar(CP_UTF8, 0, token_buf, -1, token_w, (int)(max_wchars > 8192 ? 8192 : max_wchars));
-    if (token_count == 0)
+    if (MultiByteToWideChar(CP_UTF8, 0, token_buf, -1, token_w, (int)(max_wchars > 8192 ? 8192 : max_wchars)) == 0)
     {
         wcscpy(token_w, L"MOCK_XSTS_TOKEN");
-        token_count = wcslen(token_w) + 1;
     }
 
-    sig_w = token_w + token_count;
-    sig_count = (SIZE_T)MultiByteToWideChar(CP_UTF8, 0, sig_buf, -1, sig_w, (int)(max_wchars > token_count ? (max_wchars - token_count) : 0));
-    if (sig_count == 0)
+    sig_w = token_w + wcslen(token_w) + 1;
+    if (sig_buf[0] != '\0')
+    {
+        MultiByteToWideChar(CP_UTF8, 0, sig_buf, -1, sig_w, (int)(max_wchars > (wcslen(token_w) + 1) ? (max_wchars - (wcslen(token_w) + 1)) : 0));
+    }
+    else
     {
         sig_w[0] = L'\0';
-        sig_count = 1;
     }
 
     data->token = token_w;
-    data->tokenCount = token_count;
+    data->tokenCount = wcslen(token_w);
     if (sig_buf[0] != '\0')
     {
         data->signature = sig_w;
-        data->signatureCount = sig_count;
+        data->signatureCount = wcslen(sig_w);
     }
     else
     {
@@ -494,7 +513,7 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
            data->tokenCount, data->signatureCount, req_url );
 
     if (ptrToBuffer) *ptrToBuffer = data;
-    if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureUtf16Data) + (token_count + (data->signature ? sig_count : 0)) * sizeof(WCHAR);
+    if (bufferUsed) *bufferUsed = sizeof(XUserGetTokenAndSignatureUtf16Data) + (data->tokenCount + 1 + (data->signature ? data->signatureCount + 1 : 0)) * sizeof(WCHAR);
 
     return S_OK;
 }
