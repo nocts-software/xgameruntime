@@ -27,30 +27,40 @@ static int ipc_socket_fd = -1;
 static int connect_to_daemon(void)
 {
     const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
-    char socket_path[256];
-    struct sockaddr_un addr;
-    int fd;
+    const char *candidates[8];
+    int cand_count = 0;
+    char custom_path[256];
+    int fd, i;
 
     if (runtime_dir && runtime_dir[0] != '\0')
-        snprintf(socket_path, sizeof(socket_path), "%s/xodus.sock", runtime_dir);
-    else
-        snprintf(socket_path, sizeof(socket_path), "/tmp/xodus.sock");
-
-    fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0)
-        return -1;
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socket_path);
-
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
+        snprintf(custom_path, sizeof(custom_path), "%s/xodus.sock", runtime_dir);
+        candidates[cand_count++] = custom_path;
+    }
+    candidates[cand_count++] = "/tmp/xodus.sock";
+    candidates[cand_count++] = "/run/user/1000/xodus.sock";
+    candidates[cand_count++] = "/run/user/1001/xodus.sock";
+
+    for (i = 0; i < cand_count; i++)
+    {
+        struct sockaddr_un addr;
+        fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd < 0) continue;
+
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", candidates[i]);
+
+        if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0)
+        {
+            fprintf(stderr, "[GDK IPC] Connected to xodus-service daemon at %s (fd %d)\n", candidates[i], fd);
+            return fd;
+        }
         close(fd);
-        return -1;
     }
 
-    return fd;
+    fprintf(stderr, "[GDK IPC] ERROR: Failed to connect to xodus-service daemon on all socket candidates\n");
+    return -1;
 }
 
 HRESULT ipc_init(void)
@@ -112,10 +122,71 @@ static size_t decode_varint(const BYTE *in, size_t in_len, UINT64 *out_val)
     return 0;
 }
 
+static const BYTE *pb_find_field(const BYTE *buf, SIZE_T buf_len, UINT32 target_field, UINT32 expected_wire_type, SIZE_T *out_field_len)
+{
+    SIZE_T i = 0;
+    while (i < buf_len)
+    {
+        UINT64 key = 0;
+        size_t key_len = decode_varint(&buf[i], buf_len - i, &key);
+        if (!key_len) break;
+        i += key_len;
+
+        UINT32 field_num = (UINT32)(key >> 3);
+        UINT32 wire_type = (UINT32)(key & 7);
+
+        if (wire_type == 0) /* Varint */
+        {
+            UINT64 val = 0;
+            size_t val_len = decode_varint(&buf[i], buf_len - i, &val);
+            if (!val_len) break;
+            if (field_num == target_field && wire_type == expected_wire_type)
+            {
+                if (out_field_len) *out_field_len = (SIZE_T)val;
+                return &buf[i];
+            }
+            i += val_len;
+        }
+        else if (wire_type == 2) /* Length-delimited */
+        {
+            UINT64 len = 0;
+            size_t len_bytes = decode_varint(&buf[i], buf_len - i, &len);
+            if (!len_bytes) break;
+            i += len_bytes;
+            if (i + len > buf_len) break;
+
+            if (field_num == target_field && wire_type == expected_wire_type)
+            {
+                if (out_field_len) *out_field_len = (SIZE_T)len;
+                return &buf[i];
+            }
+            i += (SIZE_T)len;
+        }
+        else if (wire_type == 1) /* 64-bit */
+        {
+            i += 8;
+        }
+        else if (wire_type == 5) /* 32-bit */
+        {
+            i += 4;
+        }
+        else
+        {
+            break;
+        }
+    }
+    return NULL;
+}
+
+static const BYTE *pb_get_xodus_payload(const BYTE *msg_buf, SIZE_T msg_len, SIZE_T *out_payload_len)
+{
+    return pb_find_field(msg_buf, msg_len, 3, 2, out_payload_len);
+}
+
 static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, SIZE_T payload_len, BYTE *out_resp, SIZE_T resp_max, SIZE_T *out_resp_len)
 {
-    BYTE packet[1024];
-    BYTE pb_buf[512];
+    BYTE packet[16384 + 32];
+    BYTE pb_buf[16384];
     SIZE_T pb_len = 0;
     UINT32 magic = PROTO_MAGIC;
     UINT32 total_len;
@@ -125,7 +196,10 @@ static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, 
     if (ipc_socket_fd < 0)
     {
         if (ipc_init() != S_OK)
+        {
+            fprintf(stderr, "[GDK IPC] ERROR: Cannot connect to xodus-service daemon!\n");
             return E_FAIL;
+        }
     }
 
     /* Encode XodusMessage: msg_type (field 1), request_id (field 2), payload (field 3) */
@@ -139,6 +213,8 @@ static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, 
     {
         pb_buf[pb_len++] = (3 << 3) | 2; /* tag 3, length-delimited */
         pb_len += encode_varint((UINT64)payload_len, &pb_buf[pb_len]);
+        if (pb_len + payload_len > sizeof(pb_buf))
+            return E_OUTOFMEMORY;
         memcpy(&pb_buf[pb_len], payload, payload_len);
         pb_len += payload_len;
     }
@@ -153,6 +229,7 @@ static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, 
     sent = write(ipc_socket_fd, packet, 8 + pb_len);
     if (sent < (ssize_t)(8 + pb_len))
     {
+        fprintf(stderr, "[GDK IPC] ERROR: Failed to write to daemon socket\n");
         ipc_cleanup();
         return E_FAIL;
     }
@@ -161,6 +238,7 @@ static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, 
     ret = read(ipc_socket_fd, &resp_payload_len, 4);
     if (ret < 4 || resp_payload_len > resp_max)
     {
+        fprintf(stderr, "[GDK IPC] ERROR: Invalid response len %u from daemon\n", resp_payload_len);
         ipc_cleanup();
         return E_FAIL;
     }
@@ -168,6 +246,7 @@ static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, 
     ret = read(ipc_socket_fd, out_resp, resp_payload_len);
     if (ret < (ssize_t)resp_payload_len)
     {
+        fprintf(stderr, "[GDK IPC] ERROR: Incomplete read from daemon\n");
         ipc_cleanup();
         return E_FAIL;
     }
@@ -178,35 +257,145 @@ static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, 
 
 HRESULT ipc_xuser_add(UINT32 options, XodusUserInfo *out_user)
 {
-    BYTE resp[512];
+    BYTE req[32];
+    SIZE_T req_len = 0;
+    BYTE resp[2048];
     SIZE_T resp_len = 0;
-    HRESULT hr = send_ipc_message(XODUS_MSG_XUSER_ADD_REQUEST, NULL, 0, resp, sizeof(resp), &resp_len);
+    HRESULT hr;
 
-    if (FAILED(hr))
-    {
-        /* Fallback mock data when daemon is offline */
-        out_user->user_id = 1;
-        snprintf(out_user->xuid, sizeof(out_user->xuid), "%s", "2533274839201029");
-        snprintf(out_user->gamertag, sizeof(out_user->gamertag), "%s", "XodusUser");
-        return S_OK;
-    }
+    if (!out_user) return E_POINTER;
 
+    /* Fallback default values */
     out_user->user_id = 1;
     snprintf(out_user->xuid, sizeof(out_user->xuid), "%s", "2533274839201029");
     snprintf(out_user->gamertag, sizeof(out_user->gamertag), "%s", "XodusUser");
+
+    req[req_len++] = (1 << 3) | 0;
+    req_len += encode_varint((UINT64)options, &req[req_len]);
+
+    hr = send_ipc_message(XODUS_MSG_XUSER_ADD_REQUEST, req, req_len, resp, sizeof(resp), &resp_len);
+    if (SUCCEEDED(hr))
+    {
+        SIZE_T payload_len = 0;
+        const BYTE *payload = pb_get_xodus_payload(resp, resp_len, &payload_len);
+        if (payload)
+        {
+            SIZE_T str_len = 0;
+            const BYTE *xuid_ptr = pb_find_field(payload, payload_len, 3, 2, &str_len);
+            if (xuid_ptr && str_len > 0)
+            {
+                SIZE_T copy_len = str_len < sizeof(out_user->xuid) - 1 ? str_len : sizeof(out_user->xuid) - 1;
+                memcpy(out_user->xuid, xuid_ptr, copy_len);
+                out_user->xuid[copy_len] = '\0';
+            }
+            const BYTE *gt_ptr = pb_find_field(payload, payload_len, 4, 2, &str_len);
+            if (gt_ptr && str_len > 0)
+            {
+                SIZE_T copy_len = str_len < sizeof(out_user->gamertag) - 1 ? str_len : sizeof(out_user->gamertag) - 1;
+                memcpy(out_user->gamertag, gt_ptr, copy_len);
+                out_user->gamertag[copy_len] = '\0';
+            }
+        }
+    }
     return S_OK;
 }
 
 HRESULT ipc_xuser_get_gamertag(UINT64 user_id, char *out_gamertag, SIZE_T max_len)
 {
+    BYTE req[32];
+    SIZE_T req_len = 0;
+    BYTE resp[1024];
+    SIZE_T resp_len = 0;
+    HRESULT hr;
+
+    if (!out_gamertag || max_len == 0) return E_POINTER;
     snprintf(out_gamertag, max_len, "%s", "XodusUser");
+
+    req[req_len++] = (1 << 3) | 0;
+    req_len += encode_varint(user_id, &req[req_len]);
+
+    hr = send_ipc_message(XODUS_MSG_XUSER_GET_GAMERTAG_REQUEST, req, req_len, resp, sizeof(resp), &resp_len);
+    if (SUCCEEDED(hr))
+    {
+        SIZE_T payload_len = 0;
+        const BYTE *payload = pb_get_xodus_payload(resp, resp_len, &payload_len);
+        if (payload)
+        {
+            SIZE_T str_len = 0;
+            const BYTE *gt_ptr = pb_find_field(payload, payload_len, 2, 2, &str_len);
+            if (gt_ptr && str_len > 0)
+            {
+                SIZE_T copy_len = str_len < max_len - 1 ? str_len : max_len - 1;
+                memcpy(out_gamertag, gt_ptr, copy_len);
+                out_gamertag[copy_len] = '\0';
+            }
+        }
+    }
     return S_OK;
 }
 
 HRESULT ipc_xuser_get_token(UINT64 user_id, const char *relying_party, char *out_token, SIZE_T token_max_len, char *out_sig, SIZE_T sig_max_len)
 {
+    BYTE req[1024];
+    SIZE_T req_len = 0;
+    BYTE resp[16384];
+    SIZE_T resp_len = 0;
+    HRESULT hr;
+
+    if (!out_token || token_max_len == 0) return E_POINTER;
     snprintf(out_token, token_max_len, "%s", "MOCK_XSTS_TOKEN");
-    if (out_sig) snprintf(out_sig, sig_max_len, "%s", "MOCK_SIG");
+    if (out_sig && sig_max_len > 0) snprintf(out_sig, sig_max_len, "%s", "");
+
+    req[req_len++] = (1 << 3) | 0;
+    req_len += encode_varint(user_id, &req[req_len]);
+
+    if (relying_party && relying_party[0])
+    {
+        SIZE_T rp_len = strlen(relying_party);
+        req[req_len++] = (2 << 3) | 2;
+        req_len += encode_varint((UINT64)rp_len, &req[req_len]);
+        memcpy(&req[req_len], relying_party, rp_len);
+        req_len += rp_len;
+    }
+
+    TRACE( "[GDK IPC] Requesting XSTS token for user %llu, relying_party '%s'...\n",
+           (unsigned long long)user_id, relying_party ? relying_party : "<none>" );
+
+    hr = send_ipc_message(XODUS_MSG_XUSER_GET_TOKEN_REQUEST, req, req_len, resp, sizeof(resp), &resp_len);
+    if (SUCCEEDED(hr))
+    {
+        SIZE_T payload_len = 0;
+        const BYTE *payload = pb_get_xodus_payload(resp, resp_len, &payload_len);
+        if (payload)
+        {
+            SIZE_T tok_len = 0;
+            const BYTE *tok_ptr = pb_find_field(payload, payload_len, 2, 2, &tok_len);
+            if (tok_ptr && tok_len > 0)
+            {
+                SIZE_T copy_len = tok_len < token_max_len - 1 ? tok_len : token_max_len - 1;
+                memcpy(out_token, tok_ptr, copy_len);
+                out_token[copy_len] = '\0';
+                TRACE( "[GDK IPC] Successfully received token (length: %zu bytes)\n", copy_len );
+            }
+
+            if (out_sig && sig_max_len > 0)
+            {
+                SIZE_T sig_len = 0;
+                const BYTE *sig_ptr = pb_find_field(payload, payload_len, 3, 2, &sig_len);
+                if (sig_ptr && sig_len > 0)
+                {
+                    SIZE_T copy_len = sig_len < sig_max_len - 1 ? sig_len : sig_max_len - 1;
+                    memcpy(out_sig, sig_ptr, copy_len);
+                    out_sig[copy_len] = '\0';
+                    TRACE( "[GDK IPC] Successfully received signature (length: %zu bytes)\n", copy_len );
+                }
+            }
+        }
+    }
+    else
+    {
+        fprintf(stderr, "[GDK IPC] ERROR: send_ipc_message failed for XSTS token (hr=0x%08lx)\n", hr);
+    }
     return S_OK;
 }
 

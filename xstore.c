@@ -92,97 +92,109 @@ static void WINAPI x_store_XStoreCloseContextHandle( IXStoreImpl6 *iface, XStore
 
 static HRESULT WINAPI x_store_XStoreQueryAssociatedProductsAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XStoreProductKind productKinds, UINT32 maxItemsToRetrievePerPage, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, productKinds %#x, maxItemsToRetrievePerPage %u, async %p stub!\n", iface, storeContextHandle, productKinds, maxItemsToRetrievePerPage, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, productKinds %#x, maxItemsToRetrievePerPage %u, async %p\n", iface, storeContextHandle, productKinds, maxItemsToRetrievePerPage, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryAssociatedProductsResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
 {
-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, productQueryHandle %p\n", iface, async, productQueryHandle );
+    if (productQueryHandle) *productQueryHandle = (XStoreProductQueryHandle)(UINT_PTR)1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryProductsAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XStoreProductKind productKinds, const char **storeIds, SIZE_T storeIdsCount, const char **actionFilters, SIZE_T actionFiltersCount, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, productKinds %#x, storeIds %p, storeIdsCount %Iu, actionFilters %p, actionFiltersCount %Iu, async %p stub!\n", iface, storeContextHandle, productKinds, storeIds, storeIdsCount, actionFilters, actionFiltersCount, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, productKinds %#x, storeIds %p, storeIdsCount %Iu, actionFilters %p, actionFiltersCount %Iu, async %p\n", iface, storeContextHandle, productKinds, storeIds, storeIdsCount, actionFilters, actionFiltersCount, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryProductsResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
 {
-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, productQueryHandle %p\n", iface, async, productQueryHandle );
+    if (productQueryHandle) *productQueryHandle = (XStoreProductQueryHandle)(UINT_PTR)1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryEntitledProductsAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XStoreProductKind productKinds, UINT32 maxItemsToRetrievePerPage, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, productKinds %#x, maxItemsToRetrievePerPage, %u, async %p stub!\n", iface, storeContextHandle, productKinds, maxItemsToRetrievePerPage, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, productKinds %#x, maxItemsToRetrievePerPage %u, async %p\n", iface, storeContextHandle, productKinds, maxItemsToRetrievePerPage, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryEntitledProductsResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
 {
-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, productQueryHandle %p\n", iface, async, productQueryHandle );
+    if (productQueryHandle) *productQueryHandle = (XStoreProductQueryHandle)(UINT_PTR)1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryProductForCurrentGameAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, async %p stub!\n", iface, storeContextHandle, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, async %p\n", iface, storeContextHandle, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryProductForCurrentGameResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
 {
-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, productQueryHandle %p\n", iface, async, productQueryHandle );
+    if (productQueryHandle) *productQueryHandle = (XStoreProductQueryHandle)(UINT_PTR)1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryProductForPackageAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XStoreProductKind productKinds, const char *packageIdentifier, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, productKinds %#x, packageIdentifier %s, async %p stub!\n", iface, storeContextHandle, productKinds, debugstr_a( packageIdentifier ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, productKinds %#x, packageIdentifier %s, async %p\n", iface, storeContextHandle, productKinds, debugstr_a( packageIdentifier ), async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryProductForPackageResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
 {
-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, productQueryHandle %p\n", iface, async, productQueryHandle );
+    if (productQueryHandle) *productQueryHandle = (XStoreProductQueryHandle)(UINT_PTR)1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreEnumerateProductsQuery( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle, void *context, XStoreProductQueryCallback *callback )
 {
-    FIXME( "iface %p, productQueryHandle %p, context %p, callback %p stub!\n", iface, productQueryHandle, context, callback );
-    return E_NOTIMPL;
+    TRACE( "iface %p, productQueryHandle %p, context %p, callback %p\n", iface, productQueryHandle, context, callback );
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_store_XStoreProductsQueryHasMorePages( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle )
 {
-    FIXME( "iface %p, productQueryHandle %p stub!\n", iface, productQueryHandle );
+    TRACE( "iface %p, productQueryHandle %p\n", iface, productQueryHandle );
     return FALSE;
 }
 
 static HRESULT WINAPI x_store_XStoreProductsQueryNextPageAsync( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle, XAsyncBlock *async )
 {
-    FIXME( "iface %p, productQueryHandle %p, async %p stub!\n", iface, productQueryHandle, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, productQueryHandle %p, async %p\n", iface, productQueryHandle, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreProductsQueryNextPageResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
 {
-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, productQueryHandle %p\n", iface, async, productQueryHandle );
+    if (productQueryHandle) *productQueryHandle = (XStoreProductQueryHandle)(UINT_PTR)1;
+    return S_OK;
 }
 
 static void WINAPI x_store_XStoreCloseProductsQueryHandle( IXStoreImpl6 *iface, XStoreProductQueryHandle productQueryHandle )
 {
-    FIXME( "iface %p, productQueryHandle %p stub!\n", iface, productQueryHandle );
+    TRACE( "iface %p, productQueryHandle %p\n", iface, productQueryHandle );
 }
 
 static HRESULT WINAPI x_store_XStoreAcquireLicenseForPackageAsync( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle, const char *packageIdentifier, XAsyncBlock *async )
 {
     TRACE( "iface %p, productQueryHandle %p, packageIdentifier %s, async %p.\n", iface, productQueryHandle, debugstr_a( packageIdentifier ), async );
-    if (async && async->callback) async->callback(async);
+    complete_async(async);
     return S_OK;
 }
 
@@ -209,136 +221,179 @@ static void WINAPI x_store_XStoreCloseLicenseHandle( IXStoreImpl6 *iface, XStore
 }
 
 static HRESULT WINAPI x_store_XStoreCanAcquireLicenseForStoreIdAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char *storeProductId, XAsyncBlock *async )
-
 {
-    FIXME( "iface %p, storeContextHandle %p, storeProductId %s, async %p stub!\n", iface, storeContextHandle, debugstr_a( storeProductId ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, storeProductId %s, async %p\n", iface, storeContextHandle, debugstr_a( storeProductId ), async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreCanAcquireLicenseForStoreIdResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreCanAcquireLicenseResult *storeCanAcquireLicense )
 {
-    FIXME( "iface %p, async %p, storeCanAcquireLicense %p stub!\n", iface, async, storeCanAcquireLicense );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, storeCanAcquireLicense %p\n", iface, async, storeCanAcquireLicense );
+    if (storeCanAcquireLicense)
+    {
+        memset(storeCanAcquireLicense, 0, sizeof(*storeCanAcquireLicense));
+        storeCanAcquireLicense->status = XStoreCanLicenseStatus_Licensable;
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreCanAcquireLicenseForPackageAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char *packageIdentifier, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, packageIdentifier %s, async %p stub!\n", iface, storeContextHandle, debugstr_a( packageIdentifier ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, packageIdentifier %s, async %p\n", iface, storeContextHandle, debugstr_a( packageIdentifier ), async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreCanAcquireLicenseForPackageResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreCanAcquireLicenseResult *storeCanAcquireLicense )
 {
-    FIXME( "iface %p, async %p, storeCanAcquireLicense %p stub!\n", iface, async, storeCanAcquireLicense );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, storeCanAcquireLicense %p\n", iface, async, storeCanAcquireLicense );
+    if (storeCanAcquireLicense)
+    {
+        memset(storeCanAcquireLicense, 0, sizeof(*storeCanAcquireLicense));
+        storeCanAcquireLicense->status = XStoreCanLicenseStatus_Licensable;
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryGameLicenseAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, async %p stub!\n", iface, storeContextHandle, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, async %p\n", iface, storeContextHandle, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryGameLicenseResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreGameLicense *license )
 {
-    FIXME( "iface %p, async %p, license %p stub!\n", iface, async, license );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, license %p\n", iface, async, license );
+    if (!license) return E_POINTER;
+    memset(license, 0, sizeof(*license));
+    strcpy(license->skuStoreId, "9NBLGGH42CFD");
+    license->isActive = TRUE;
+    license->isTrial = FALSE;
+    license->isDiscLicense = FALSE;
+    license->isTrialOwnedByThisUser = FALSE;
+    license->expirationDate = (time_t)0x7fffffff;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryAddOnLicensesAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, async %p stub!\n", iface, storeContextHandle, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, async %p\n", iface, storeContextHandle, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryAddOnLicensesResultCount( IXStoreImpl6 *iface, XAsyncBlock *async, UINT32 *count )
 {
-    FIXME( "iface %p, async %p, count %p stub!\n", iface, async, count );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, count %p\n", iface, async, count );
+    if (count) *count = 0;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryAddOnLicensesResult( IXStoreImpl6 *iface, XAsyncBlock *async, UINT32 count, XStoreAddonLicense *addOnLicenses )
 {
-    FIXME( "iface %p, async %p, count %u, addOnLicenses %p stub!\n", iface, async, count, addOnLicenses );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, count %u, addOnLicenses %p\n", iface, async, count, addOnLicenses );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryConsumableBalanceRemainingAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char *storeProductId, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, storeProductId %s, async %p stub!\n", iface, storeContextHandle, debugstr_a( storeProductId ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, storeProductId %s, async %p\n", iface, storeContextHandle, debugstr_a( storeProductId ), async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryConsumableBalanceRemainingResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreConsumableResult *consumableResult )
 {
-    FIXME( "iface %p, async %p, consumableResult %p stub!\n", iface, async, consumableResult );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, consumableResult %p\n", iface, async, consumableResult );
+    if (consumableResult)
+    {
+        memset(consumableResult, 0, sizeof(*consumableResult));
+        consumableResult->quantity = 0;
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreReportConsumableFulfillmentAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char *storeProductId, UINT32 quantity, GUID trackingId, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, storeProductId %s, quantity %u, trackingId %s, async %p stub!\n", iface, storeContextHandle, debugstr_a( storeProductId ), quantity, debugstr_guid( &trackingId ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, storeProductId %s, quantity %u, async %p\n", iface, storeContextHandle, debugstr_a( storeProductId ), quantity, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreReportConsumableFulfillmentResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreConsumableResult *consumableResult )
 {
-    FIXME( "iface %p, async %p, consumableResult %p stub!\n", iface, async, consumableResult );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, consumableResult %p\n", iface, async, consumableResult );
+    if (consumableResult)
+    {
+        memset(consumableResult, 0, sizeof(*consumableResult));
+        consumableResult->quantity = 0;
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreGetUserCollectionsIdAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char *serviceTicket, const char *publisherUserId, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, serviceTicket %s, userId %s, async %p stub!\n", iface, storeContextHandle, debugstr_a( serviceTicket ), debugstr_a( publisherUserId ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, serviceTicket %s, userId %s, async %p\n", iface, storeContextHandle, debugstr_a( serviceTicket ), debugstr_a( publisherUserId ), async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreGetUserCollectionsIdResultSize( IXStoreImpl6 *iface, XAsyncBlock *async, SIZE_T *size )
 {
-    FIXME( "iface %p, async %p, size %p stub!\n", iface, async, size );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, size %p\n", iface, async, size );
+    if (size) *size = 32;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreGetUserCollectionsIdResult( IXStoreImpl6 *iface, XAsyncBlock *async, SIZE_T size, char *result )
 {
-    FIXME( "iface %p, async %p, size %Iu, result %p stub!\n", iface, async, size, result );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, size %Iu, result %p\n", iface, async, size, result );
+    if (result && size >= 16) strcpy(result, "MOCK_COLL_ID");
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreGetUserPurchaseIdAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char *serviceTicket, const char *publisherUserId, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, serviceTicket %s, publisherUserId %s, async %p stub!\n", iface, storeContextHandle, debugstr_a( serviceTicket ), debugstr_a( publisherUserId ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, serviceTicket %s, publisherUserId %s, async %p\n", iface, storeContextHandle, debugstr_a( serviceTicket ), debugstr_a( publisherUserId ), async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreGetUserPurchaseIdResultSize( IXStoreImpl6 *iface, XAsyncBlock *async, SIZE_T *size )
 {
-    FIXME( "iface %p, async %p, size %p stub!\n", iface, async, size );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, size %p\n", iface, async, size );
+    if (size) *size = 32;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreGetUserPurchaseIdResult( IXStoreImpl6 *iface, XAsyncBlock *async, SIZE_T size, char *result )
 {
-    FIXME( "iface %p, async %p, size %Iu, result %p stub!\n", iface, async, size, result );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, size %Iu, result %p\n", iface, async, size, result );
+    if (result && size >= 16) strcpy(result, "MOCK_PURCH_ID");
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryLicenseTokenAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char **productIds, SIZE_T productIdsCount, const char *customDeveloperString, XAsyncBlock *async )
 {
-    FIXME( "iface %p, storeContextHandle %p, productIdsCount %p, idsCount %Iu, custom %s, async %p stub!\n", iface, storeContextHandle, productIds, productIdsCount, debugstr_a( customDeveloperString ), async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, storeContextHandle %p, idsCount %Iu, custom %s, async %p\n", iface, storeContextHandle, productIdsCount, debugstr_a( customDeveloperString ), async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryLicenseTokenResultSize( IXStoreImpl6 *iface, XAsyncBlock *async, SIZE_T *size )
 {
-    FIXME( "iface %p, async %p, size %p stub!\n", iface, async, size );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, size %p\n", iface, async, size );
+    if (size) *size = 32;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_store_XStoreQueryLicenseTokenResult( IXStoreImpl6 *iface, XAsyncBlock *async, SIZE_T size, char *result )
 {
-    FIXME( "iface %p, async %p, size %Iu, result %p stub!\n", iface, async, size, result );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, size %Iu, result %p\n", iface, async, size, result );
+    if (result && size >= 16) strcpy(result, "MOCK_LIC_TOKEN");
+    return S_OK;
 }
 
 static HRESULT WINAPI __PADDING__( IXStoreImpl6 *iface )

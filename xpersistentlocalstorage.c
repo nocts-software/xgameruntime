@@ -70,22 +70,47 @@ static ULONG WINAPI x_persistent_local_storage_Release( IXPersistentLocalStorage
     return ref;
 }
 
+static void get_pls_path(char *out, size_t max_len)
+{
+    const char *pfn = getenv("LOCAL_APP_MODEL_PACKAGE_FAMILY_NAME");
+    if (pfn && pfn[0]) {
+        snprintf(out, max_len, "C:\\users\\steamuser\\AppData\\Local\\Packages\\%s\\LocalState\\", pfn);
+    } else {
+        snprintf(out, max_len, "C:\\users\\steamuser\\AppData\\Local\\Packages\\LocalState\\");
+    }
+}
+
 static HRESULT WINAPI x_persistent_local_storage_XPersistentLocalStorageGetPath( IXPersistentLocalStorageImpl3 *iface, SIZE_T pathSize, char *path, SIZE_T *pathUsed )
 {
-    FIXME( "iface %p, pathSize %Iu, path %p, pathUsed %p stub!\n", iface, pathSize, path, pathUsed );
-    return E_NOTIMPL;
+    char mock_path[MAX_PATH];
+    SIZE_T len;
+    get_pls_path(mock_path, sizeof(mock_path));
+    len = strlen(mock_path) + 1;
+    TRACE( "iface %p, pathSize %Iu, path %p, pathUsed %p -> %s\n", iface, pathSize, path, pathUsed, mock_path );
+    if (pathUsed) *pathUsed = len;
+    if (!path) return E_POINTER;
+    if (pathSize < len) return E_INVALIDARG;
+    strcpy(path, mock_path);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_persistent_local_storage_XPersistentLocalStorageGetPathSize( IXPersistentLocalStorageImpl3 *iface, SIZE_T *pathSize )
 {
-    FIXME( "iface %p, pathSize %p stub!\n", iface, pathSize );
-    return E_NOTIMPL;
+    char mock_path[MAX_PATH];
+    get_pls_path(mock_path, sizeof(mock_path));
+    TRACE( "iface %p, pathSize %p -> %s\n", iface, pathSize, mock_path );
+    if (!pathSize) return E_POINTER;
+    *pathSize = strlen(mock_path) + 1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_persistent_local_storage_XPersistentLocalStorageGetSpaceInfo( IXPersistentLocalStorageImpl3 *iface, XPersistentLocalStorageSpaceInfo *info )
 {
-    FIXME( "iface %p, info %p stub!\n", iface, info );
-    return E_NOTIMPL;
+    TRACE( "iface %p, info %p\n", iface, info );
+    if (!info) return E_POINTER;
+    info->usedBytes = 1024 * 1024;
+    info->totalBytes = 256 * 1024 * 1024;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_persistent_local_storage_XPersistentLocalStorageMountForPackage( IXPersistentLocalStorageImpl3 *iface, const char *packageIdentifier, XPackageMountHandle *mountHandle )

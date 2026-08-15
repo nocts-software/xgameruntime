@@ -71,5 +71,15 @@ winegcc -shared -m64 -I. -D__WINESRC__ twinapi.appcore.spec \
     -lgdi32 -luser32 -lcombase \
     -o twinapi.appcore.dll
 
-echo "=== Build successful! Generated xgameruntime.dll and twinapi.appcore.dll ==="
+echo "=== Generating Wine PE fake modules and Unix Winelib SOs ==="
+mkdir -p x86_64-unix
+cp xgameruntime.dll.so x86_64-unix/xgameruntime.so
+cp twinapi.appcore.dll.so x86_64-unix/twinapi.appcore.so
+
+winebuild --fake-module --dll -m64 -E xgameruntime.spec -o xgameruntime.dll
+winebuild --fake-module --dll -m64 -E twinapi.appcore.spec -o twinapi.appcore.dll
+winebuild --fake-module --dll -m64 -E api-ms-win-core-psm-appnotify-l1-1-0.spec -o api-ms-win-core-psm-appnotify-l1-1-0.dll
+
+echo "=== Build successful! Generated xgameruntime.dll, twinapi.appcore.dll, and forwarders ==="
+
 

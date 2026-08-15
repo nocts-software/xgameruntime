@@ -249,3 +249,8 @@ HRESULT WINAPI QueryApiImpl( REFCLSID clsid, REFIID iid, void **out )
     return S_OK;
 }
 
+
+HRESULT WINAPI UninitializeApiImpl(void)
+{
+    return S_OK;
+}

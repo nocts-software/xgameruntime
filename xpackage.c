@@ -73,25 +73,32 @@ static ULONG WINAPI x_package_Release( IXPackageImpl4 *iface )
 
 static HRESULT WINAPI x_package_XPackageGetCurrentProcessPackageIdentifier( IXPackageImpl4 *iface, SIZE_T bufferSize, char *buffer )
 {
-    FIXME( "iface %p, bufferSize %Iu, buffer %p stub!\n", iface, bufferSize, buffer );
-    return E_NOTIMPL;
+    const char *pfn = getenv("LOCAL_APP_MODEL_PACKAGE_FAMILY_NAME");
+    SIZE_T len;
+    TRACE( "iface %p, bufferSize %Iu, buffer %p\n", iface, bufferSize, buffer );
+    if (!pfn || !pfn[0]) pfn = "XodusGame_8wekyb3d8bbwe";
+    len = strlen(pfn) + 1;
+    if (!buffer || bufferSize < len) return HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
+    strcpy(buffer, pfn);
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_package_XPackageIsPackagedProcess( IXPackageImpl4 *iface )
 {
-    FIXME( "iface %p stub!\n", iface );
-    return FALSE;
+    TRACE( "iface %p\n", iface );
+    return TRUE;
 }
 
 static HRESULT WINAPI x_package_XPackageCreateInstallationMonitor( IXPackageImpl4 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors, UINT32 minimumUpdateIntervalMs, XTaskQueueHandle queue, XPackageInstallationMonitorHandle *installationMonitor )
 {
-    FIXME( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p, minimumUpdateIntervalMs %u, queue %p, installationMonitor %p stub!\n", iface, debugstr_a( packageIdentifier ), selectorCount, selectors, minimumUpdateIntervalMs, queue, installationMonitor );
-    return E_NOTIMPL;
+    TRACE( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p, minimumUpdateIntervalMs %u, queue %p, installationMonitor %p\n", iface, debugstr_a( packageIdentifier ), selectorCount, selectors, minimumUpdateIntervalMs, queue, installationMonitor );
+    if (installationMonitor) *installationMonitor = (XPackageInstallationMonitorHandle)(UINT_PTR)1;
+    return S_OK;
 }
 
 static void WINAPI x_package_XPackageCloseInstallationMonitorHandle( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor )
 {
-    FIXME( "iface %p, installationMonitor %p stub!\n", iface, installationMonitor );
+    TRACE( "iface %p, installationMonitor %p\n", iface, installationMonitor );
 }
 
 static void WINAPI x_package_XPackageGetInstallationProgress( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor, XPackageInstallationProgress *progress )
@@ -101,7 +108,9 @@ static void WINAPI x_package_XPackageGetInstallationProgress( IXPackageImpl4 *if
     {
         progress->totalBytes = 1000000000;
         progress->installedBytes = 1000000000;
+        progress->launchBytes = 1000000000;
         progress->completed = TRUE;
+        progress->launchable = TRUE;
     }
 }
 
@@ -128,47 +137,53 @@ static HRESULT WINAPI x_package_XPackageGetMountPath( IXPackageImpl4 *iface, XPa
     return E_POINTER;
 }
 
-
 static BOOLEAN WINAPI x_package_XPackageUpdateInstallationMonitor( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor )
 {
-    FIXME( "iface %p, installationMonitor %p stub!\n", iface, installationMonitor );
+    TRACE( "iface %p, installationMonitor %p\n", iface, installationMonitor );
     return TRUE;
 }
 
 static HRESULT WINAPI x_package_XPackageRegisterInstallationProgressChanged( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor, void *context, XPackageInstallationProgressCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, installationMonitor %p, context %p, callback %p, token %p stub!\n", iface, installationMonitor, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, installationMonitor %p, context %p, callback %p, token %p\n", iface, installationMonitor, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_package_XPackageUnregisterInstallationProgressChanged( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor, XTaskQueueRegistrationToken token, BOOLEAN wait )
 {
-    FIXME( "iface %p, installationMonitor %p, token %p, wait %d stub!\n", iface, installationMonitor, &token, wait );
+    TRACE( "iface %p, installationMonitor %p, token %p, wait %d\n", iface, installationMonitor, &token, wait );
     return TRUE;
 }
 
 static HRESULT WINAPI x_package_XPackageGetUserLocale( IXPackageImpl4 *iface, SIZE_T localeSize, char *locale )
 {
-    FIXME( "iface %p, localeSize %Iu, locale %p stub!\n", iface, localeSize, locale );
-    return E_NOTIMPL;
+    TRACE( "iface %p, localeSize %Iu, locale %p\n", iface, localeSize, locale );
+    if (locale && localeSize >= 6)
+    {
+        strcpy(locale, "en-US");
+        return S_OK;
+    }
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageFindChunkAvailability( IXPackageImpl4 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors, XPackageChunkAvailability *availability )
 {
-    FIXME( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p, availability %p stub!\n", iface, packageIdentifier, selectorCount, selectors, availability );
-    return E_NOTIMPL;
+    TRACE( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p, availability %p\n", iface, packageIdentifier, selectorCount, selectors, availability );
+    if (availability) *availability = XPackageChunkAvailability_Ready;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageEnumerateChunkAvailability( IXPackageImpl4 *iface, const char *packageIdentifier, XPackageChunkSelectorType type, void *context, XPackageChunkAvailabilityCallback *callback )
 {
-    FIXME( "iface %p, packageIdentifier %s, type %d, context %p, callback %p stub!\n", iface, debugstr_a( packageIdentifier ), type, context, callback );
-    return E_NOTIMPL;
+    TRACE( "iface %p, packageIdentifier %s, type %d, context %p, callback %p\n", iface, debugstr_a( packageIdentifier ), type, context, callback );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageChangeChunkInstallOrder( IXPackageImpl4 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors )
 {
-    FIXME( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p stub!\n", iface, debugstr_a( packageIdentifier ), selectorCount, selectors );
-    return E_NOTIMPL;
+    TRACE( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p\n", iface, debugstr_a( packageIdentifier ), selectorCount, selectors );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageInstallChunks( IXPackageImpl4 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors, UINT32 minimumUpdateIntervalMs, BOOLEAN suppressUserConfirmation, XTaskQueueHandle queue, XPackageInstallationMonitorHandle *installationMonitor )
@@ -238,20 +253,45 @@ static HRESULT WINAPI __PADDING_4__( IXPackageImpl4 *iface )
 
 static HRESULT WINAPI x_package_XPackageEnumeratePackages( IXPackageImpl4 *iface, XPackageKind kind, XPackageEnumerationScope scope, void *context, XPackageEnumerationCallback *callback )
 {
-    FIXME( "iface %p, kind %d, scope %d, context %p, callback %p stub!\n", iface, kind, scope, context, callback );
-    return E_NOTIMPL;
+    XPackageDetails details;
+    const char *pfn = getenv("LOCAL_APP_MODEL_PACKAGE_FAMILY_NAME");
+    const char *title_name = getenv("XODUS_DISPLAY_NAME");
+    const char *publisher = getenv("XODUS_PUBLISHER");
+    const char *store_id = getenv("XODUS_STORE_ID");
+    const char *title_id = getenv("XODUS_TITLE_ID");
+
+    TRACE( "iface %p, kind %d, scope %d, context %p, callback %p\n", iface, kind, scope, context, callback );
+    if (!pfn || !pfn[0]) pfn = "XodusGame_8wekyb3d8bbwe";
+    if (!title_name || !title_name[0]) title_name = "Xodus Game";
+    if (!publisher || !publisher[0]) publisher = "Xbox Game Studios";
+    if (!store_id || !store_id[0]) store_id = "000000000000";
+    if (!title_id || !title_id[0]) title_id = "00000000";
+
+    memset(&details, 0, sizeof(details));
+    details.packageIdentifier = pfn;
+    details.displayName = title_name;
+    details.description = title_name;
+    details.publisher = publisher;
+    details.storeId = store_id;
+    details.titleID = title_id;
+    details.kind = kind;
+    details.installing = FALSE;
+    if (callback) callback(context, &details);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageRegisterPackageInstalled( IXPackageImpl4 *iface, XTaskQueueHandle queue, void *context, XPackageInstalledCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageGetWriteStats( IXPackageImpl4 *iface, XPackageWriteStats *writeStats )
 {
-    FIXME( "iface %p, writeStats %p stub!\n", iface, writeStats );
-    return E_NOTIMPL;
+    TRACE( "iface %p, writeStats %p\n", iface, writeStats );
+    if (writeStats) memset(writeStats, 0, sizeof(*writeStats));
+    return S_OK;
 }
 
 static HRESULT WINAPI __PADDING_5__( IXPackageImpl4 *iface )
@@ -262,33 +302,59 @@ static HRESULT WINAPI __PADDING_5__( IXPackageImpl4 *iface )
 
 static HRESULT WINAPI x_package_XPackageUninstallUWPInstance( IXPackageImpl4 *iface, const char *packageName )
 {
-    FIXME( "iface %p, packageName %s stub!\n", iface, debugstr_a( packageName ) );
-    return E_NOTIMPL;
+    TRACE( "iface %p, packageName %s\n", iface, debugstr_a( packageName ) );
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageEnumerateFeatures( IXPackageImpl4 *iface, const char *packageIdentifier, void *context, XPackageFeatureEnumerationCallback *callback )
 {
-    FIXME( "iface %p, packageIdentifier %s, context %p, callback %p stub!\n", iface, packageIdentifier, context, callback );
-    return E_NOTIMPL;
+    TRACE( "iface %p, packageIdentifier %s, context %p, callback %p\n", iface, packageIdentifier, context, callback );
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_package_XPackageUninstallPackage( IXPackageImpl4 *iface, const char *packageIdentifier )
 {
-    FIXME( "iface %p, packageIdentifier %s", iface, debugstr_a( packageIdentifier ) );
-    return FALSE;
+    TRACE( "iface %p, packageIdentifier %s\n", iface, debugstr_a( packageIdentifier ) );
+    return TRUE;
 }
 
 static HRESULT WINAPI x_package_XPackageEnumeratePackages2( IXPackageImpl4 *iface, XPackageKind kind, XPackageEnumerationScope scope, void *context, XPackageEnumerationCallback *callback )
 {
-    FIXME( "iface %p, kind %d, scope %d, context %p, callback %p stub!\n", iface, kind, scope, context, callback );
-    return E_NOTIMPL;
+    XPackageDetails details;
+    const char *pfn = getenv("LOCAL_APP_MODEL_PACKAGE_FAMILY_NAME");
+    const char *title_name = getenv("XODUS_DISPLAY_NAME");
+    const char *publisher = getenv("XODUS_PUBLISHER");
+    const char *store_id = getenv("XODUS_STORE_ID");
+    const char *title_id = getenv("XODUS_TITLE_ID");
+
+    TRACE( "iface %p, kind %d, scope %d, context %p, callback %p\n", iface, kind, scope, context, callback );
+    if (!pfn || !pfn[0]) pfn = "XodusGame_8wekyb3d8bbwe";
+    if (!title_name || !title_name[0]) title_name = "Xodus Game";
+    if (!publisher || !publisher[0]) publisher = "Xbox Game Studios";
+    if (!store_id || !store_id[0]) store_id = "000000000000";
+    if (!title_id || !title_id[0]) title_id = "00000000";
+
+    memset(&details, 0, sizeof(details));
+    details.packageIdentifier = pfn;
+    details.displayName = title_name;
+    details.description = title_name;
+    details.publisher = publisher;
+    details.storeId = store_id;
+    details.titleID = title_id;
+    details.kind = kind;
+    details.installing = FALSE;
+    if (callback) callback(context, &details);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageRegisterPackageInstalled2( IXPackageImpl4 *iface, XTaskQueueHandle queue, void *context, XPackageInstalledCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
+
+
 
 static HRESULT WINAPI x_package_XPackageMountWithUiAsync( IXPackageImpl4 *iface, const char *packageIdentifier, XAsyncBlock *async )
 {

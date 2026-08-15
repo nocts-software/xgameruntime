@@ -131,30 +131,57 @@ static void WINAPI x_threading_XAsyncComplete( IXThreadingImpl *iface, XAsyncBlo
 static HRESULT WINAPI x_threading_XAsyncGetResult( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, const void *identity, SIZE_T bufferSize, void *buffer, SIZE_T *bufferUsed )
 {
     TRACE( "iface %p asyncBlock %p, identity %p, bufferSize %Iu, buffer %p, bufferUsed %p\n", iface, asyncBlock, identity, bufferSize, buffer, bufferUsed );
+    if (buffer && bufferSize > 0)
+    {
+        memset(buffer, 0, bufferSize);
+    }
     if (bufferUsed) *bufferUsed = bufferSize;
     return S_OK;
 }
 
+
+struct task_callback_entry
+{
+    void *context;
+    XTaskQueueCallback *callback;
+    struct task_callback_entry *next;
+};
 
 struct task_queue
 {
     XTaskQueueDispatchMode work_mode;
     XTaskQueueDispatchMode comp_mode;
     LONG ref;
+    struct task_callback_entry *work_head;
+    struct task_callback_entry *work_tail;
+    struct task_callback_entry *comp_head;
+    struct task_callback_entry *comp_tail;
+    CRITICAL_SECTION cs;
+    BOOL cs_inited;
 };
 
-static struct task_queue default_process_queue = { 0, 0, 1 };
+static struct task_queue default_process_queue = { 0, 0, 1, NULL, NULL, NULL, NULL, {0}, FALSE };
+
+static void init_queue_cs(struct task_queue *tq)
+{
+    if (!tq->cs_inited)
+    {
+        InitializeCriticalSection(&tq->cs);
+        tq->cs_inited = TRUE;
+    }
+}
 
 static HRESULT WINAPI x_threading_XTaskQueueCreate( IXThreadingImpl *iface, XTaskQueueDispatchMode workDispatchMode, XTaskQueueDispatchMode completionDispatchMode, XTaskQueueHandle *queue )
 {
     struct task_queue *tq;
     TRACE( "iface %p, workDispatchMode %d, completionDispatchMode %d, queue %p\n", iface, workDispatchMode, completionDispatchMode, queue );
     if (!queue) return E_POINTER;
-    tq = malloc( sizeof(*tq) );
+    tq = calloc( 1, sizeof(*tq) );
     if (!tq) return E_OUTOFMEMORY;
     tq->work_mode = workDispatchMode;
     tq->comp_mode = completionDispatchMode;
     tq->ref = 1;
+    init_queue_cs(tq);
     *queue = (XTaskQueueHandle)tq;
     return S_OK;
 }
@@ -164,11 +191,12 @@ static HRESULT WINAPI x_threading_XTaskQueueCreateComposite( IXThreadingImpl *if
     struct task_queue *tq;
     TRACE( "iface %p, workPort %p, completionPort %p, queue %p\n", iface, workPort, completionPort, queue );
     if (!queue) return E_POINTER;
-    tq = malloc( sizeof(*tq) );
+    tq = calloc( 1, sizeof(*tq) );
     if (!tq) return E_OUTOFMEMORY;
     tq->work_mode = 0;
     tq->comp_mode = 0;
     tq->ref = 1;
+    init_queue_cs(tq);
     *queue = (XTaskQueueHandle)tq;
     return S_OK;
 }
@@ -177,7 +205,7 @@ static HRESULT WINAPI x_threading_XTaskQueueGetPort( IXThreadingImpl *iface, XTa
 {
     TRACE( "iface %p, queue %p, port %d, portHandle %p\n", iface, queue, port, portHandle );
     if (!portHandle) return E_POINTER;
-    *portHandle = (XTaskQueuePortHandle)queue;
+    *portHandle = (XTaskQueuePortHandle)(queue ? queue : (XTaskQueueHandle)&default_process_queue);
     return S_OK;
 }
 
@@ -196,7 +224,44 @@ static HRESULT WINAPI x_threading_XTaskQueueDuplicateHandle( IXThreadingImpl *if
 
 static BOOLEAN WINAPI x_threading_XTaskQueueDispatch( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, UINT32 timeoutInMs )
 {
-    TRACE( "iface %p, queue %p, port %d, timeoutInMs %d\n", iface, queue, port, timeoutInMs );
+    struct task_queue *tq = queue ? (struct task_queue *)queue : &default_process_queue;
+    struct task_callback_entry *entry = NULL;
+
+    init_queue_cs(tq);
+    EnterCriticalSection(&tq->cs);
+
+    if (port == XTaskQueuePort_Work)
+    {
+        if (tq->work_head)
+        {
+            entry = tq->work_head;
+            tq->work_head = entry->next;
+            if (!tq->work_head) tq->work_tail = NULL;
+        }
+    }
+    else
+    {
+        if (tq->comp_head)
+        {
+            entry = tq->comp_head;
+            tq->comp_head = entry->next;
+            if (!tq->comp_head) tq->comp_tail = NULL;
+        }
+    }
+
+    LeaveCriticalSection(&tq->cs);
+
+    if (entry)
+    {
+        TRACE( "Dispatching callback %p (ctx %p) on port %d\n", entry->callback, entry->context, port );
+        if (entry->callback)
+        {
+            entry->callback( entry->context, FALSE );
+        }
+        free( entry );
+        return TRUE;
+    }
+
     return FALSE;
 }
 
@@ -208,6 +273,15 @@ static void WINAPI x_threading_XTaskQueueCloseHandle( IXThreadingImpl *iface, XT
         struct task_queue *tq = (struct task_queue *)queue;
         if (InterlockedDecrement( &tq->ref ) == 0)
         {
+            struct task_callback_entry *cur, *next;
+            init_queue_cs(tq);
+            EnterCriticalSection(&tq->cs);
+            cur = tq->work_head;
+            while (cur) { next = cur->next; free(cur); cur = next; }
+            cur = tq->comp_head;
+            while (cur) { next = cur->next; free(cur); cur = next; }
+            LeaveCriticalSection(&tq->cs);
+            DeleteCriticalSection(&tq->cs);
             free( tq );
         }
     }
@@ -215,22 +289,46 @@ static void WINAPI x_threading_XTaskQueueCloseHandle( IXThreadingImpl *iface, XT
 
 static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, void *callbackContext, XTaskQueueCallback *callback )
 {
+    struct task_queue *tq = queue ? (struct task_queue *)queue : &default_process_queue;
+    struct task_callback_entry *entry;
     TRACE( "iface %p, queue %p, port %d, callbackContext %p, callback %p\n", iface, queue, port, callbackContext, callback );
-    if (callback)
+
+    if (!callback) return S_OK;
+
+    entry = malloc( sizeof(*entry) );
+    if (!entry) return E_OUTOFMEMORY;
+    entry->context = callbackContext;
+    entry->callback = callback;
+    entry->next = NULL;
+
+    init_queue_cs(tq);
+    EnterCriticalSection(&tq->cs);
+
+    if (port == XTaskQueuePort_Work)
     {
-        callback( callbackContext, FALSE );
+        if (tq->work_tail)
+            tq->work_tail->next = entry;
+        else
+            tq->work_head = entry;
+        tq->work_tail = entry;
     }
+    else
+    {
+        if (tq->comp_tail)
+            tq->comp_tail->next = entry;
+        else
+            tq->comp_head = entry;
+        tq->comp_tail = entry;
+    }
+
+    LeaveCriticalSection(&tq->cs);
     return S_OK;
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueSubmitDelayedCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, UINT32 delayMs, void *callbackContext, XTaskQueueCallback *callback )
 {
     TRACE( "iface %p, queue %p, port %d, delayMs %d, callbackContext %p, callback %p\n", iface, queue, port, delayMs, callbackContext, callback );
-    if (callback)
-    {
-        callback( callbackContext, FALSE );
-    }
-    return S_OK;
+    return x_threading_XTaskQueueSubmitCallback( iface, queue, port, callbackContext, callback );
 }
 
 static HRESULT WINAPI x_threading_XTaskQueueRegisterWaiter( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, HANDLE waitHandle, void *callbackContext, XTaskQueueCallback *callback, XTaskQueueRegistrationToken *token )
@@ -276,6 +374,24 @@ static void WINAPI x_threading_XTaskQueueSetCurrentProcessTaskQueue( IXThreading
 {
     TRACE( "iface %p, queue %p\n", iface, queue );
 }
+
+static void CALLBACK async_callback_thunk(void *context, BOOLEAN canceled)
+{
+    XAsyncBlock *async = (XAsyncBlock *)context;
+    if (async && async->callback)
+    {
+        TRACE( "Invoking async callback %p on async block %p\n", async->callback, async );
+        async->callback(async);
+    }
+}
+
+void complete_async(XAsyncBlock *async)
+{
+    if (!async) return;
+    XTaskQueueHandle queue = async->queue ? async->queue : (XTaskQueueHandle)&default_process_queue;
+    x_threading_XTaskQueueSubmitCallback(x_threading_impl, queue, XTaskQueuePort_Completion, async, async_callback_thunk);
+}
+
 
 
 static HRESULT WINAPI x_threading_XThreadSetTimeSensitive( IXThreadingImpl *iface, BOOLEAN isTimeSensitiveThread )

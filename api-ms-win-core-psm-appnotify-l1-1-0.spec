@@ -1,0 +1,4 @@
+@ stdcall RegisterAppStateChangeNotification(ptr ptr ptr) twinapi.appcore.RegisterAppStateChangeNotification
+@ stdcall RegisterAppConstrainedChangeNotification(ptr ptr ptr) twinapi.appcore.RegisterAppConstrainedChangeNotification
+@ stdcall UnregisterAppStateChangeNotification(ptr) twinapi.appcore.UnregisterAppStateChangeNotification
+@ stdcall UnregisterAppConstrainedChangeNotification(ptr) twinapi.appcore.UnregisterAppConstrainedChangeNotification

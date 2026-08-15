@@ -74,7 +74,7 @@ static ULONG WINAPI x_game_ui_Release( IXGameUiImpl4 *iface )
 static HRESULT WINAPI x_game_ui_XGameUiShowMessageDialogAsync( IXGameUiImpl4 *iface, XAsyncBlock *async, const char *titleText, const char *contentText, const char *firstButtonText, const char *secondButtonText, const char *thirdButtonText, XGameUiMessageDialogButton defaultButton, XGameUiMessageDialogButton cancelButton )
 {
     TRACE( "iface %p, async %p, titleText %s, contentText %s.\n", iface, async, debugstr_a( titleText ), debugstr_a( contentText ) );
-    if (async && async->callback) async->callback(async);
+    complete_async(async);
     return S_OK;
 }
 
@@ -92,7 +92,7 @@ static HRESULT WINAPI x_game_ui_XGameUiShowMessageDialogResult( IXGameUiImpl4 *i
 static HRESULT WINAPI x_game_ui_XGameUiShowSendGameInviteAsync( IXGameUiImpl4 *iface, XAsyncBlock *async, XUserHandle requestingUser, const char *sessionConfigurationId, const char *sessionTemplateName, const char *sessionId, const char *invitationText, const char *customActivationContext )
 {
     TRACE( "iface %p, async %p, requestingUser %p, sessionId %s.\n", iface, async, requestingUser, debugstr_a( sessionId ) );
-    if (async && async->callback) async->callback(async);
+    complete_async(async);
     return S_OK;
 }
 
@@ -105,7 +105,7 @@ static HRESULT WINAPI x_game_ui_XGameUiShowSendGameInviteResult( IXGameUiImpl4 *
 static HRESULT WINAPI x_game_ui_XGameUiShowPlayerProfileCardAsync( IXGameUiImpl4 *iface, XAsyncBlock *async, XUserHandle requestingUser, UINT64 targetPlayer )
 {
     TRACE( "iface %p, async %p, requestingUser %p, targetPlayer %llu.\n", iface, async, requestingUser, targetPlayer );
-    if (async && async->callback) async->callback(async);
+    complete_async(async);
     return S_OK;
 }
 

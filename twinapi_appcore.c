@@ -11,10 +11,6 @@ HRESULT WINAPI RegisterAppStateChangeNotification(PAPPSTATE_CHANGE_ROUTINE routi
     TRACE("routine %p, context %p, reg %p\n", routine, context, reg);
     if (!reg) return E_POINTER;
     *reg = (PAPPSTATE_REGISTRATION)(UINT_PTR)1;
-    if (routine)
-    {
-        routine(FALSE, context);
-    }
     return S_OK;
 }
 
@@ -23,10 +19,6 @@ HRESULT WINAPI RegisterAppConstrainedChangeNotification(PAPPCONSTRAINED_CHANGE_R
     TRACE("routine %p, context %p, reg %p\n", routine, context, reg);
     if (!reg) return E_POINTER;
     *reg = (PAPPSTATE_REGISTRATION)(UINT_PTR)1;
-    if (routine)
-    {
-        routine(FALSE, context);
-    }
     return S_OK;
 }
 
@@ -115,6 +107,34 @@ static const void *dummy_factory_vtbl[] = {
 
 static struct { const void **vtbl; } dummy_activation_factory_obj = { dummy_factory_vtbl };
 
+static void WINAPI hooked_RtlGetDeviceFamilyInfoEnum(ULONGLONG *pullUAPInfo, DWORD *pdwDeviceFamily, DWORD *pdwDeviceForm)
+{
+    TRACE("hooked_RtlGetDeviceFamilyInfoEnum: pullUAPInfo=%p, pdwDeviceFamily=%p, pdwDeviceForm=%p\n",
+          pullUAPInfo, pdwDeviceFamily, pdwDeviceForm);
+    if (pullUAPInfo) *pullUAPInfo = 0x000a000049440000ULL;
+    if (pdwDeviceFamily) *pdwDeviceFamily = 3; /* DEVICEFAMILYINFOENUM_DESKTOP */
+    if (pdwDeviceForm) *pdwDeviceForm = 0;   /* DEVICEFAMILYDEVICEFORM_UNKNOWN */
+}
+
+static void hook_ntdll_device_family(void)
+{
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+    if (!ntdll) return;
+
+    void *target = (void*)GetProcAddress(ntdll, "RtlGetDeviceFamilyInfoEnum");
+    if (!target) return;
+
+    DWORD old_protect;
+    if (VirtualProtect(target, 14, PAGE_EXECUTE_READWRITE, &old_protect))
+    {
+        unsigned char jmp_code[14] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
+        *(UINT_PTR*)(jmp_code + 6) = (UINT_PTR)hooked_RtlGetDeviceFamilyInfoEnum;
+        memcpy(target, jmp_code, 14);
+        VirtualProtect(target, 14, old_protect, &old_protect);
+        FlushInstructionCache(GetCurrentProcess(), target, 14);
+    }
+}
+
 HRESULT WINAPI DllGetActivationFactory(HSTRING classid, IActivationFactory **factory)
 {
     TRACE("classid %p, factory %p\n", classid, factory);
@@ -122,3 +142,14 @@ HRESULT WINAPI DllGetActivationFactory(HSTRING classid, IActivationFactory **fac
     *factory = (IActivationFactory*)&dummy_activation_factory_obj;
     return S_OK;
 }
+
+BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, void *reserved)
+{
+    if (reason == DLL_PROCESS_ATTACH)
+    {
+        DisableThreadLibraryCalls(hinst);
+        hook_ntdll_device_family();
+    }
+    return TRUE;
+}
+

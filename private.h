@@ -21,8 +21,20 @@
 #define COBJMACROS
 
 #include <roapi.h>
+#include <stdio.h>
 #include <wine/debug.h>
 #include <winstring.h>
+
+#undef TRACE
+#define TRACE(fmt, ...) do { \
+    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
+    if (_log_f) { \
+        fprintf(_log_f, "[XGDK] " fmt, ##__VA_ARGS__); \
+        fclose(_log_f); \
+    } \
+    fprintf(stderr, "[XGDK] " fmt, ##__VA_ARGS__); \
+    fflush(stderr); \
+} while(0)
 
 #include <xaccessibility.h>
 #include <xappcapture.h>
@@ -93,5 +105,6 @@ extern IXUserDeviceImpl *x_user_device_impl;
 
 extern void *get_winrt_package_factory(void);
 extern HWND create_core_window_host(void);
+void complete_async(XAsyncBlock *async);
 
 HRESULT WINAPI QueryApiImpl( const GUID *classId, REFIID interfaceId, void **out );
