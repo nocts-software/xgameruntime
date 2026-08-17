@@ -30,6 +30,10 @@ typedef enum {
     XODUS_MSG_XGAMESAVE_READ_BLOB_RESPONSE = 14,
     XODUS_MSG_XGAMESAVE_WRITE_BLOB_REQUEST = 15,
     XODUS_MSG_XGAMESAVE_WRITE_BLOB_RESPONSE = 16,
+    XODUS_MSG_XGAMESAVE_ENUMERATE_BLOBS_REQUEST = 25,
+    XODUS_MSG_XGAMESAVE_ENUMERATE_BLOBS_RESPONSE = 26,
+    XODUS_MSG_XSTORE_QUERY_LICENSE_TOKEN_REQUEST = 27,
+    XODUS_MSG_XSTORE_QUERY_LICENSE_TOKEN_RESPONSE = 28,
 } XodusMessageType;
 
 typedef struct {
@@ -42,10 +46,11 @@ HRESULT ipc_init(void);
 void ipc_cleanup(void);
 HRESULT ipc_xuser_add(UINT32 options, XodusUserInfo *out_user);
 HRESULT ipc_xuser_get_gamertag(UINT64 user_id, char *out_gamertag, SIZE_T max_len);
-HRESULT ipc_xuser_get_token(UINT64 user_id, const char *relying_party, char *out_token, SIZE_T token_max_len, char *out_sig, SIZE_T sig_max_len);
+HRESULT ipc_xuser_get_token(UINT64 user_id, const char *relying_party, const char *http_method, const char *url, const void *body, SIZE_T body_len, char *out_token, SIZE_T token_max_len, char *out_sig, SIZE_T sig_max_len);
 HRESULT ipc_xuser_get_gamer_picture(UINT64 user_id, DWORD picture_size, void *out_buf, SIZE_T buf_len, SIZE_T *out_used);
 HRESULT ipc_xuser_check_privilege(UINT64 user_id, UINT32 privilege, BOOL *out_has_privilege, UINT32 *out_deny_reason);
 HRESULT ipc_xstore_query_license(UINT64 user_id, const char *product_id, BOOL *out_is_licensed);
+HRESULT ipc_xstore_query_license_token(UINT64 user_id, const char *product_id, char *out_token, SIZE_T token_max_len);
 HRESULT ipc_xstore_query_products(UINT64 user_id, UINT32 product_kinds, const char *store_ids, char *out_products_json, SIZE_T max_len, SIZE_T *out_count);
 HRESULT ipc_xstore_acquire_license(UINT64 user_id, const char *package_id, BOOL *out_is_licensed, void *out_blob, SIZE_T max_len, SIZE_T *out_used);
 

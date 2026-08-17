@@ -119,7 +119,43 @@ static HRESULT WINAPI x_game_XGameGetXboxTitleId( IXGameImpl3 *iface, UINT32 *ti
 
 static void WINAPI x_game_XLaunchNewGame( IXGameImpl3 *iface, const char *exePath, const char *args, XUserHandle defaultUser )
 {
-    FIXME( "iface %p exePath %s, args %s, defaultUser %p stub!\n", iface, debugstr_a( exePath ), debugstr_a( args ), defaultUser );
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    char cmdline[2048];
+    BOOL ret;
+
+    fprintf(stderr, "[GDK XGame] XLaunchNewGame: launching target '%s' with args '%s' (defaultUser %p)\n",
+            exePath ? exePath : "(null)", args ? args : "", defaultUser);
+
+    if (!exePath || !*exePath)
+        return;
+
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    memset(&pi, 0, sizeof(pi));
+
+    if (args && *args)
+        snprintf(cmdline, sizeof(cmdline), "\"%s\" %s", exePath, args);
+    else
+        snprintf(cmdline, sizeof(cmdline), "\"%s\"", exePath);
+
+    ret = CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+    if (!ret)
+    {
+        ret = CreateProcessA(exePath, (LPSTR)args, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+    }
+
+    if (ret)
+    {
+        fprintf(stderr, "[GDK XGame] XLaunchNewGame: successfully launched PID %lu\n", (unsigned long)pi.dwProcessId);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    else
+    {
+        fprintf(stderr, "[GDK XGame] XLaunchNewGame: CreateProcess failed with error %lu for '%s'\n",
+                (unsigned long)GetLastError(), cmdline);
+    }
 }
 
 static HRESULT WINAPI x_game_XLaunchRestartOnCrash( IXGameImpl3 *iface, const char *args, UINT32 reserved )

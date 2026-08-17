@@ -22,52 +22,58 @@
 
 #include <roapi.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include <time.h>
+#include <sys/time.h>
 #include <wine/debug.h>
 #include <winstring.h>
 
+static inline void xgdk_log(const char *level, const char *func, int line, const char *fmt, ...)
+{
+    char time_str[64];
+    struct timeval tv;
+    struct tm *tm_info;
+    va_list args;
+    FILE *log_f;
+    time_t sec;
+
+    gettimeofday(&tv, NULL);
+    sec = tv.tv_sec;
+    tm_info = localtime(&sec);
+    if (tm_info)
+        strftime(time_str, sizeof(time_str), "%H:%M:%S", tm_info);
+    else
+        snprintf(time_str, sizeof(time_str), "??:??:??");
+
+    log_f = fopen("/tmp/xodus-gdk.log", "a");
+    if (log_f) {
+        fprintf(log_f, "[XGDK %s][%s.%03ld][TID %04lx][%s:%d] ",
+                level, time_str, (long)(tv.tv_usec / 1000), (unsigned long)GetCurrentThreadId(), func, line);
+        va_start(args, fmt);
+        vfprintf(log_f, fmt, args);
+        va_end(args);
+        fclose(log_f);
+    }
+
+    fprintf(stderr, "[XGDK %s][%s.%03ld][TID %04lx][%s:%d] ",
+            level, time_str, (long)(tv.tv_usec / 1000), (unsigned long)GetCurrentThreadId(), func, line);
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fflush(stderr);
+}
+
 #undef TRACE
-#define TRACE(fmt, ...) do { \
-    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
-    if (_log_f) { \
-        fprintf(_log_f, "[XGDK TRACE] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-        fclose(_log_f); \
-    } \
-    fprintf(stderr, "[XGDK TRACE] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-    fflush(stderr); \
-} while(0)
+#define TRACE(fmt, ...) xgdk_log("TRACE", __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
 #undef FIXME
-#define FIXME(fmt, ...) do { \
-    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
-    if (_log_f) { \
-        fprintf(_log_f, "[XGDK FIXME] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-        fclose(_log_f); \
-    } \
-    fprintf(stderr, "[XGDK FIXME] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-    fflush(stderr); \
-} while(0)
+#define FIXME(fmt, ...) xgdk_log("FIXME", __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
 #undef WARN
-#define WARN(fmt, ...) do { \
-    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
-    if (_log_f) { \
-        fprintf(_log_f, "[XGDK WARN] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-        fclose(_log_f); \
-    } \
-    fprintf(stderr, "[XGDK WARN] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-    fflush(stderr); \
-} while(0)
+#define WARN(fmt, ...) xgdk_log("WARN", __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
 #undef ERR
-#define ERR(fmt, ...) do { \
-    FILE *_log_f = fopen("/tmp/xodus-gdk.log", "a"); \
-    if (_log_f) { \
-        fprintf(_log_f, "[XGDK ERR] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-        fclose(_log_f); \
-    } \
-    fprintf(stderr, "[XGDK ERR] %s: " fmt, __FUNCTION__, ##__VA_ARGS__); \
-    fflush(stderr); \
-} while(0)
+#define ERR(fmt, ...) xgdk_log("ERR", __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
 #include <xaccessibility.h>
 #include <xappcapture.h>

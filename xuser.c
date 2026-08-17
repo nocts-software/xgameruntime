@@ -317,12 +317,14 @@ struct async_token_req {
     XAsyncBlock *async;
     char method[64];
     char url[1024];
+    BYTE body[4096];
+    SIZE_T body_len;
 };
 
 static struct async_token_req g_token_reqs[64];
 static int g_token_req_count = 0;
 
-static void register_token_req(XAsyncBlock *async, const char *method, const char *url)
+static void register_token_req(XAsyncBlock *async, const char *method, const char *url, const void *body, SIZE_T body_len)
 {
     int i;
     for (i = 0; i < g_token_req_count; i++)
@@ -331,6 +333,13 @@ static void register_token_req(XAsyncBlock *async, const char *method, const cha
         {
             if (method) snprintf(g_token_reqs[i].method, sizeof(g_token_reqs[i].method), "%s", method);
             if (url) snprintf(g_token_reqs[i].url, sizeof(g_token_reqs[i].url), "%s", url);
+            g_token_reqs[i].body_len = 0;
+            if (body && body_len > 0)
+            {
+                SIZE_T copy_len = body_len < sizeof(g_token_reqs[i].body) ? body_len : sizeof(g_token_reqs[i].body);
+                memcpy(g_token_reqs[i].body, body, copy_len);
+                g_token_reqs[i].body_len = copy_len;
+            }
             return;
         }
     }
@@ -339,26 +348,39 @@ static void register_token_req(XAsyncBlock *async, const char *method, const cha
         g_token_reqs[g_token_req_count].async = async;
         snprintf(g_token_reqs[g_token_req_count].method, sizeof(g_token_reqs[g_token_req_count].method), "%s", method ? method : "GET");
         snprintf(g_token_reqs[g_token_req_count].url, sizeof(g_token_reqs[g_token_req_count].url), "%s", url ? url : "http://xboxlive.com");
+        g_token_reqs[g_token_req_count].body_len = 0;
+        if (body && body_len > 0)
+        {
+            SIZE_T copy_len = body_len < sizeof(g_token_reqs[g_token_req_count].body) ? body_len : sizeof(g_token_reqs[g_token_req_count].body);
+            memcpy(g_token_reqs[g_token_req_count].body, body, copy_len);
+            g_token_reqs[g_token_req_count].body_len = copy_len;
+        }
         g_token_req_count++;
     }
 }
 
-static const char *get_token_req_url(XAsyncBlock *async)
+static struct async_token_req *get_token_req(XAsyncBlock *async)
 {
     int i;
     for (i = 0; i < g_token_req_count; i++)
     {
         if (g_token_reqs[i].async == async)
-            return g_token_reqs[i].url;
+            return &g_token_reqs[i];
     }
-    return "http://xboxlive.com";
+    return NULL;
+}
+
+static const char *get_token_req_url(XAsyncBlock *async)
+{
+    struct async_token_req *req = get_token_req(async);
+    return req ? req->url : "http://xboxlive.com";
 }
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureAsync( IXUserImpl6 *iface, XUserHandle user, XUserGetTokenAndSignatureOptions options, const char *method, const char *url, SIZE_T headerCount, const XUserGetTokenAndSignatureHttpHeader *headers, SIZE_T bodySize, const void *bodyBuffer, XAsyncBlock *async )
 {
     SIZE_T i;
     ensure_user_info();
-    register_token_req(async, method, url);
+    register_token_req(async, method, url, bodyBuffer, bodySize);
     TRACE( "[GDK XUser] XUserGetTokenAndSignatureAsync: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
            options, method ? method : "", url ? url : "", headerCount, bodySize, async );
     for (i = 0; i < headerCount && headers; i++)
@@ -386,30 +408,34 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResultSize( IXUserImpl6 *i
 
 static HRESULT WINAPI x_user_XUserGetTokenAndSignatureResult( IXUserImpl6 *iface, XAsyncBlock *async, SIZE_T bufferSize, void *buffer, XUserGetTokenAndSignatureData **ptrToBuffer, SIZE_T *bufferUsed )
 {
+    char temp_token[8192] = {0};
+    char temp_sig[2048] = {0};
     XUserGetTokenAndSignatureData *data;
     char *token_ptr;
     char *sig_ptr;
-    SIZE_T max_token_len;
-    SIZE_T max_sig_len = 1024;
-    const char *req_url = get_token_req_url(async);
+    struct async_token_req *req = get_token_req(async);
+    const char *req_url = req ? req->url : "http://xboxlive.com";
+    const char *req_method = req ? req->method : "GET";
+    const void *req_body = req ? req->body : NULL;
+    SIZE_T req_body_len = req ? req->body_len : 0;
 
     if (!buffer || bufferSize < sizeof(XUserGetTokenAndSignatureData) + 512)
         return E_INVALIDARG;
 
+    ipc_xuser_get_token(1, req_url, req_method, req_url, req_body, req_body_len, temp_token, sizeof(temp_token), temp_sig, sizeof(temp_sig));
+
     data = (XUserGetTokenAndSignatureData *)buffer;
     token_ptr = (char *)buffer + sizeof(XUserGetTokenAndSignatureData);
-    max_token_len = bufferSize - sizeof(XUserGetTokenAndSignatureData) - max_sig_len;
-    sig_ptr = token_ptr + max_token_len;
-
+    data->tokenSize = strlen(temp_token);
+    memcpy(token_ptr, temp_token, data->tokenSize + 1);
     data->token = token_ptr;
-    data->signature = sig_ptr;
 
-    ipc_xuser_get_token(1, req_url, (char *)data->token, max_token_len, (char *)data->signature, max_sig_len);
-
-    data->tokenSize = strlen(data->token);
-    if (sig_ptr[0] != '\0')
+    if (temp_sig[0] != '\0')
     {
-        data->signatureSize = strlen(data->signature);
+        sig_ptr = token_ptr + data->tokenSize + 1;
+        data->signatureSize = strlen(temp_sig);
+        memcpy(sig_ptr, temp_sig, data->signatureSize + 1);
+        data->signature = sig_ptr;
     }
     else
     {
@@ -435,7 +461,7 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Async( IXUserImpl6 *i
     if (method && method[0]) WideCharToMultiByte(CP_UTF8, 0, method, -1, method_a, sizeof(method_a) - 1, NULL, NULL);
     if (url && url[0]) WideCharToMultiByte(CP_UTF8, 0, url, -1, url_a, sizeof(url_a) - 1, NULL, NULL);
 
-    register_token_req(async, method_a, url_a);
+    register_token_req(async, method_a, url_a, bodyBuffer, bodySize);
     TRACE( "[GDK XUser] XUserGetTokenAndSignatureUtf16Async: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
            options, method_a, url_a, headerCount, bodySize, async );
     for (i = 0; i < headerCount && headers; i++)
@@ -449,6 +475,14 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Async( IXUserImpl6 *i
     if (bodySize > 0 && bodyBuffer)
     {
         TRACE( "  Body (len %zu): '%.*s'\n", bodySize, (int)(bodySize > 256 ? 256 : bodySize), (const char *)bodyBuffer );
+    }
+    /* ERR-level to always capture Athena/Ares requests for debugging */
+    if (strstr(url_a, "ares") || strstr(url_a, "athena") || strstr(url_a, "msrareservices"))
+    {
+        ERR( "[XODUS-DIAG][ERMINEBEARD] XUserGetTokenAndSignatureUtf16Async: method='%s', url='%s'\n", method_a, url_a );
+        if (bodySize > 0 && bodyBuffer)
+            ERR( "[XODUS-DIAG][ERMINEBEARD] Request body (len=%zu): '%.*s'\n",
+                 bodySize, (int)(bodySize > 2048 ? 2048 : bodySize), (const char *)bodyBuffer );
     }
     complete_async(async);
     return S_OK;
@@ -470,7 +504,11 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
     WCHAR *token_w;
     WCHAR *sig_w;
     SIZE_T max_wchars;
-    const char *req_url = get_token_req_url(async);
+    struct async_token_req *req = get_token_req(async);
+    const char *req_url = req ? req->url : "http://xboxlive.com";
+    const char *req_method = req ? req->method : "GET";
+    const void *req_body = req ? req->body : NULL;
+    SIZE_T req_body_len = req ? req->body_len : 0;
 
     if (!buffer || bufferSize < sizeof(XUserGetTokenAndSignatureUtf16Data) + 256 * sizeof(WCHAR))
         return E_INVALIDARG;
@@ -479,7 +517,7 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
     token_w = (WCHAR *)((BYTE *)buffer + sizeof(XUserGetTokenAndSignatureUtf16Data));
     max_wchars = (bufferSize - sizeof(XUserGetTokenAndSignatureUtf16Data)) / sizeof(WCHAR);
 
-    ipc_xuser_get_token(1, req_url, token_buf, sizeof(token_buf), sig_buf, sizeof(sig_buf));
+    ipc_xuser_get_token(1, req_url, req_method, req_url, req_body, req_body_len, token_buf, sizeof(token_buf), sig_buf, sizeof(sig_buf));
 
     if (MultiByteToWideChar(CP_UTF8, 0, token_buf, -1, token_w, (int)(max_wchars > 8192 ? 8192 : max_wchars)) == 0)
     {
@@ -508,6 +546,13 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Result( IXUserImpl6 *
         data->signature = NULL;
         data->signatureCount = 0;
     }
+
+    if (strstr(req_url, "discovery.prod.athena"))
+        TRACE( "[BEARD-DIAG][KIWIBEARD-DIAG] Delivering token for Athena Title Discovery (len: %zu, sig: %zu)\n", data->tokenCount, data->signatureCount );
+    else if (strstr(req_url, "ares") || strstr(req_url, "athena"))
+        TRACE( "[BEARD-DIAG][ERMINEBEARD-DIAG] Delivering token for Ares Authentication Handshake (len: %zu, sig: %zu)\n", data->tokenCount, data->signatureCount );
+    else if (strstr(req_url, "eos") || strstr(req_url, "epicgames"))
+        TRACE( "[BEARD-DIAG][HAZELBEARD-DIAG] Delivering token for EOS Crossplay Handshake (len: %zu, sig: %zu)\n", data->tokenCount, data->signatureCount );
 
     TRACE( "[GDK XUser] XUserGetTokenAndSignatureUtf16Result: tokenChars=%zu, sigChars=%zu for RP '%s'\n",
            data->tokenCount, data->signatureCount, req_url );
@@ -583,9 +628,17 @@ static HRESULT WINAPI x_user_XUserAddByIdWithUiResult( IXUserImpl6 *iface, XAsyn
     return S_OK;
 }
 
+static char g_last_msa_scope[512] = {0};
+
 static HRESULT WINAPI x_user_XUserGetMsaTokenSilentlyAsync( IXUserImpl6 *iface, XUserHandle user, XUserGetMsaTokenSilentlyOptions options, const char *scope, XAsyncBlock *async )
 {
     TRACE( "iface %p, user %p, options %u, scope %s, async %p\n", iface, user, options, debugstr_a( scope ), async );
+    if (scope && scope[0]) {
+        lstrcpynA(g_last_msa_scope, scope, sizeof(g_last_msa_scope));
+    } else {
+        g_last_msa_scope[0] = '\0';
+    }
+    ERR( "[XODUS-DIAG][ERMINEBEARD] XUserGetMsaTokenSilentlyAsync: options=0x%x, scope='%s'\n", options, scope ? scope : "(null)" );
     complete_async(async);
     return S_OK;
 }
@@ -595,6 +648,7 @@ static HRESULT WINAPI x_user_XUserGetMsaTokenSilentlyResult( IXUserImpl6 *iface,
     const char *tok = "MOCK_MSA_TOKEN";
     SIZE_T len = strlen(tok) + 1;
     TRACE( "iface %p, async %p, resultTokenSize %Iu, resultToken %p, resultTokenUsed %p\n", iface, async, resultTokenSize, resultToken, resultTokenUsed );
+    ERR( "[XODUS-DIAG][ERMINEBEARD] XUserGetMsaTokenSilentlyResult: returning MOCK for scope='%s' - NEEDS REAL MSA TOKEN\n", g_last_msa_scope );
     if (resultTokenUsed) *resultTokenUsed = len;
     if (resultToken && resultTokenSize >= len) strcpy(resultToken, tok);
     return S_OK;
@@ -604,7 +658,7 @@ static HRESULT WINAPI x_user_XUserGetMsaTokenSilentlyResultSize( IXUserImpl6 *if
 {
     TRACE( "iface %p, async %p, tokenSize %p\n", iface, async, tokenSize );
     if (!tokenSize) return E_POINTER;
-    *tokenSize = 32;
+    *tokenSize = 8192;
     return S_OK;
 }
 

@@ -334,9 +334,9 @@ HRESULT ipc_xuser_get_gamertag(UINT64 user_id, char *out_gamertag, SIZE_T max_le
     return S_OK;
 }
 
-HRESULT ipc_xuser_get_token(UINT64 user_id, const char *relying_party, char *out_token, SIZE_T token_max_len, char *out_sig, SIZE_T sig_max_len)
+HRESULT ipc_xuser_get_token(UINT64 user_id, const char *relying_party, const char *http_method, const char *url, const void *body, SIZE_T body_len, char *out_token, SIZE_T token_max_len, char *out_sig, SIZE_T sig_max_len)
 {
-    BYTE req[1024];
+    BYTE req[16384];
     SIZE_T req_len = 0;
     BYTE resp[16384];
     SIZE_T resp_len = 0;
@@ -358,8 +358,35 @@ HRESULT ipc_xuser_get_token(UINT64 user_id, const char *relying_party, char *out
         req_len += rp_len;
     }
 
-    TRACE( "[GDK IPC] Requesting XSTS token for user %llu, relying_party '%s'...\n",
-           (unsigned long long)user_id, relying_party ? relying_party : "<none>" );
+    if (http_method && http_method[0])
+    {
+        SIZE_T hm_len = strlen(http_method);
+        req[req_len++] = (3 << 3) | 2;
+        req_len += encode_varint((UINT64)hm_len, &req[req_len]);
+        memcpy(&req[req_len], http_method, hm_len);
+        req_len += hm_len;
+    }
+
+    if (url && url[0])
+    {
+        SIZE_T url_len = strlen(url);
+        req[req_len++] = (4 << 3) | 2;
+        req_len += encode_varint((UINT64)url_len, &req[req_len]);
+        memcpy(&req[req_len], url, url_len);
+        req_len += url_len;
+    }
+
+    if (body && body_len > 0 && (req_len + body_len + 10 < sizeof(req)))
+    {
+        req[req_len++] = (6 << 3) | 2;
+        req_len += encode_varint((UINT64)body_len, &req[req_len]);
+        memcpy(&req[req_len], body, body_len);
+        req_len += body_len;
+    }
+
+    TRACE( "[GDK IPC] Requesting XSTS token for user %llu, relying_party '%s', method '%s', url '%s'...\n",
+           (unsigned long long)user_id, relying_party ? relying_party : "<none>",
+           http_method ? http_method : "<none>", url ? url : "<none>" );
 
     hr = send_ipc_message(XODUS_MSG_XUSER_GET_TOKEN_REQUEST, req, req_len, resp, sizeof(resp), &resp_len);
     if (SUCCEEDED(hr))
@@ -401,12 +428,49 @@ HRESULT ipc_xuser_get_token(UINT64 user_id, const char *relying_party, char *out
 
 HRESULT ipc_xuser_get_gamer_picture(UINT64 user_id, DWORD picture_size, void *out_buf, SIZE_T buf_len, SIZE_T *out_used)
 {
-    BYTE png_header[4] = {0x89, 0x50, 0x4E, 0x47};
-    SIZE_T copy_len = buf_len < 4 ? buf_len : 4;
-    if (out_buf && copy_len > 0)
-        memcpy(out_buf, png_header, copy_len);
-    if (out_used)
-        *out_used = copy_len;
+    BYTE req[64];
+    SIZE_T req_len = 0;
+    BYTE resp[65536];
+    SIZE_T resp_len = 0;
+    HRESULT hr;
+
+    req[req_len++] = (1 << 3) | 0;
+    req_len += encode_varint(user_id, &req[req_len]);
+
+    req[req_len++] = (2 << 3) | 0;
+    req_len += encode_varint((UINT64)picture_size, &req[req_len]);
+
+    hr = send_ipc_message(17 /* XODUS_MSG_XUSER_GET_GAMER_PICTURE_REQUEST */, req, req_len, resp, sizeof(resp), &resp_len);
+    if (SUCCEEDED(hr))
+    {
+        SIZE_T payload_len = 0;
+        const BYTE *payload = pb_get_xodus_payload(resp, resp_len, &payload_len);
+        if (payload)
+        {
+            SIZE_T pic_len = 0;
+            const BYTE *pic_ptr = pb_find_field(payload, payload_len, 2, 2, &pic_len);
+            if (pic_ptr && pic_len > 0)
+            {
+                SIZE_T copy_len = pic_len < buf_len ? pic_len : buf_len;
+                if (out_buf && copy_len > 0)
+                    memcpy(out_buf, pic_ptr, copy_len);
+                if (out_used)
+                    *out_used = pic_len;
+                TRACE( "[GDK IPC] Successfully received gamer picture (%zu bytes)\n", pic_len );
+                return S_OK;
+            }
+        }
+    }
+
+    /* Fallback 4-byte PNG */
+    {
+        BYTE png_header[4] = {0x89, 0x50, 0x4E, 0x47};
+        SIZE_T copy_len = buf_len < 4 ? buf_len : 4;
+        if (out_buf && copy_len > 0)
+            memcpy(out_buf, png_header, copy_len);
+        if (out_used)
+            *out_used = copy_len;
+    }
     return S_OK;
 }
 
@@ -453,5 +517,48 @@ HRESULT ipc_xgamesave_read_blob(UINT64 user_id, const char *scid, const char *co
 
 HRESULT ipc_xgamesave_write_blob(UINT64 user_id, const char *scid, const char *container, const char *blob, const void *buf, SIZE_T buf_len)
 {
+    return S_OK;
+}
+HRESULT ipc_xstore_query_license_token(UINT64 user_id, const char *product_id, char *out_token, SIZE_T token_max_len)
+{
+    BYTE req[1024];
+    SIZE_T req_len = 0;
+    BYTE resp[16384];
+    SIZE_T resp_len = 0;
+    HRESULT hr;
+
+    if (!out_token || token_max_len == 0) return E_POINTER;
+    snprintf(out_token, token_max_len, "%s", "MOCK_LIC_TOKEN");
+
+    req[req_len++] = (1 << 3) | 0;
+    req_len += encode_varint(user_id, &req[req_len]);
+
+    if (product_id && product_id[0])
+    {
+        SIZE_T pid_len = strlen(product_id);
+        req[req_len++] = (2 << 3) | 2;
+        req_len += encode_varint((UINT64)pid_len, &req[req_len]);
+        memcpy(&req[req_len], product_id, pid_len);
+        req_len += pid_len;
+    }
+
+    hr = send_ipc_message(XODUS_MSG_XSTORE_QUERY_LICENSE_TOKEN_REQUEST, req, req_len, resp, sizeof(resp), &resp_len);
+    if (SUCCEEDED(hr))
+    {
+        SIZE_T payload_len = 0;
+        const BYTE *payload = pb_get_xodus_payload(resp, resp_len, &payload_len);
+        if (payload)
+        {
+            SIZE_T str_len = 0;
+            const BYTE *tok_ptr = pb_find_field(payload, payload_len, 2, 2, &str_len);
+            if (tok_ptr && str_len > 0)
+            {
+                SIZE_T copy_len = str_len < token_max_len - 1 ? str_len : token_max_len - 1;
+                memcpy(out_token, tok_ptr, copy_len);
+                out_token[copy_len] = 0;
+                TRACE( "[GDK IPC] Successfully received license token (length: %zu bytes)\n", copy_len );
+            }
+        }
+    }
     return S_OK;
 }
