@@ -145,5 +145,6 @@ extern IXUserDeviceImpl *x_user_device_impl;
 extern void *get_winrt_package_factory(void);
 extern HWND create_core_window_host(void);
 void complete_async(XAsyncBlock *async);
+void complete_async_with_size(XAsyncBlock *async, SIZE_T required_size);
 
 HRESULT WINAPI QueryApiImpl( const GUID *classId, REFIID interfaceId, void **out );

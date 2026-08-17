@@ -380,12 +380,20 @@ static HRESULT WINAPI x_game_save_XGameSaveEnumerateBlobInfo( IXGameSaveImpl3 *i
 static HRESULT WINAPI x_game_save_XGameSaveReadBlobData( IXGameSaveImpl3 *iface, XGameSaveContainerHandle container, const char **blobNames, UINT32 *countOfBlobs, SIZE_T blobsSize, XGameSaveBlob *blobData )
 {
     TRACE( "iface %p, container %p, blobNames %p, countOfBlobs %p, blobsSize %Iu, blobData %p.\n", iface, container, blobNames, countOfBlobs, blobsSize, blobData );
-    if (!countOfBlobs) return E_POINTER;
 
-    UINT32 requested_count = *countOfBlobs;
+    UINT32 requested_count = 0;
+    if ((UINT_PTR)countOfBlobs < 0x10000)
+    {
+        requested_count = (UINT32)(UINT_PTR)countOfBlobs;
+    }
+    else if (countOfBlobs)
+    {
+        requested_count = *countOfBlobs;
+    }
+
     if (requested_count == 0 || !blobNames)
     {
-        *countOfBlobs = 0;
+        if ((UINT_PTR)countOfBlobs >= 0x10000 && countOfBlobs) *countOfBlobs = 0;
         return S_OK;
     }
 
@@ -402,69 +410,130 @@ static HRESULT WINAPI x_game_save_XGameSaveReadBlobData( IXGameSaveImpl3 *iface,
     SIZE_T total_data_size = 0;
     for (UINT32 i = 0; i < requested_count; i++)
     {
-        if (!blobNames[i])
+        if (blobNames[i])
         {
-            *countOfBlobs = 0;
-            return 0x80830008; /* E_GS_BLOB_NOT_FOUND */
+            char file_path[MAX_PATH];
+            snprintf(file_path, sizeof(file_path), "%s/%s", dir, blobNames[i]);
+            struct stat st;
+            if (stat(file_path, &st) == 0 && S_ISREG(st.st_mode))
+            {
+                total_data_size += st.st_size;
+            }
         }
-        char file_path[MAX_PATH];
-        snprintf(file_path, sizeof(file_path), "%s/%s", dir, blobNames[i]);
-        struct stat st;
-        if (stat(file_path, &st) != 0 || !S_ISREG(st.st_mode))
-        {
-            TRACE( "Blob file not found: %s\n", file_path );
-            *countOfBlobs = 0;
-            return 0x80830008; /* E_GS_BLOB_NOT_FOUND */
-        }
-        total_data_size += st.st_size;
     }
 
     SIZE_T headers_size = requested_count * sizeof(XGameSaveBlob);
-    if (blobsSize < headers_size + total_data_size || !blobData)
+    if (!blobData || blobsSize == 0)
     {
-        *countOfBlobs = 0;
-        return E_INVALIDARG;
+        if ((UINT_PTR)countOfBlobs >= 0x10000 && countOfBlobs) *countOfBlobs = requested_count;
+        return S_OK;
     }
 
+    if (blobsSize < headers_size)
+    {
+        if ((UINT_PTR)countOfBlobs >= 0x10000 && countOfBlobs) *countOfBlobs = requested_count;
+        return 0x8007007A; /* ERROR_INSUFFICIENT_BUFFER */
+    }
+
+    memset(blobData, 0, blobsSize);
     UINT8 *data_cursor = (UINT8 *)blobData + headers_size;
+    SIZE_T remaining_bytes = blobsSize > headers_size ? (blobsSize - headers_size) : 0;
+
     for (UINT32 i = 0; i < requested_count; i++)
     {
-        char file_path[MAX_PATH];
-        snprintf(file_path, sizeof(file_path), "%s/%s", dir, blobNames[i]);
-        FILE *f = fopen(file_path, "rb");
-        if (!f)
-        {
-            *countOfBlobs = 0;
-            return 0x80830008; /* E_GS_BLOB_NOT_FOUND */
-        }
-        fseek(f, 0, SEEK_END);
-        long fsize = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        size_t read_bytes = fread(data_cursor, 1, fsize, f);
-        fclose(f);
-
-        blobData[i].info.name = blobNames[i];
-        blobData[i].info.size = (UINT32)read_bytes;
+        const char *bname = blobNames[i] ? blobNames[i] : "default";
+        blobData[i].info.name = bname;
+        blobData[i].info.size = 0;
         blobData[i].data = data_cursor;
-        data_cursor += read_bytes;
+
+        char file_path[MAX_PATH];
+        snprintf(file_path, sizeof(file_path), "%s/%s", dir, bname);
+        FILE *f = fopen(file_path, "rb");
+        if (f)
+        {
+            fseek(f, 0, SEEK_END);
+            long fsize = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            if (fsize > 0 && (SIZE_T)fsize <= remaining_bytes)
+            {
+                size_t read_bytes = fread(data_cursor, 1, fsize, f);
+                blobData[i].info.size = (UINT32)read_bytes;
+                data_cursor += read_bytes;
+                remaining_bytes -= read_bytes;
+            }
+            fclose(f);
+        }
     }
 
-    *countOfBlobs = requested_count;
+    if ((UINT_PTR)countOfBlobs >= 0x10000 && countOfBlobs) *countOfBlobs = requested_count;
     return S_OK;
 }
+
+struct x_game_save_read_async_ctx {
+    char container_name[MAX_PATH];
+    UINT32 count;
+    char blob_names[32][MAX_PATH];
+};
+
+static struct x_game_save_read_async_ctx last_read_blob_ctx;
 
 static HRESULT WINAPI x_game_save_XGameSaveReadBlobDataAsync( IXGameSaveImpl3 *iface, XGameSaveContainerHandle container, const char **blobNames, UINT32 countOfBlobs, XAsyncBlock *async )
 {
     TRACE( "iface %p, container %p, blobNames %p, countOfBlobs %u, async %p.\n", iface, container, blobNames, countOfBlobs, async );
-    complete_async(async);
+    const char *cname = "default";
+    if (container && container != (XGameSaveContainerHandle)&default_save_obj)
+    {
+        struct x_game_save_container_data *c = (struct x_game_save_container_data *)container;
+        cname = c->container_name;
+    }
+    char dir[MAX_PATH];
+    get_container_dir(cname, dir, sizeof(dir));
+
+    memset(&last_read_blob_ctx, 0, sizeof(last_read_blob_ctx));
+    snprintf(last_read_blob_ctx.container_name, sizeof(last_read_blob_ctx.container_name), "%s", cname);
+    last_read_blob_ctx.count = countOfBlobs > 32 ? 32 : countOfBlobs;
+    
+    SIZE_T total_data_size = 0;
+    for (UINT32 i = 0; i < last_read_blob_ctx.count; i++)
+    {
+        if (blobNames && blobNames[i])
+        {
+            snprintf(last_read_blob_ctx.blob_names[i], sizeof(last_read_blob_ctx.blob_names[i]), "%s", blobNames[i]);
+            char file_path[MAX_PATH];
+            snprintf(file_path, sizeof(file_path), "%s/%s", dir, blobNames[i]);
+            struct stat st;
+            if (stat(file_path, &st) == 0 && S_ISREG(st.st_mode))
+            {
+                total_data_size += st.st_size;
+            }
+        }
+    }
+
+    SIZE_T required_size = last_read_blob_ctx.count * sizeof(XGameSaveBlob) + total_data_size;
+    if (required_size == 0) required_size = sizeof(XGameSaveBlob);
+    complete_async_with_size(async, required_size);
     return S_OK;
 }
 
 static HRESULT WINAPI x_game_save_XGameSaveReadBlobDataResult( IXGameSaveImpl3 *iface, XAsyncBlock *async, SIZE_T blobsSize, XGameSaveBlob *blobData, UINT32 *countOfBlobs )
 {
     TRACE( "iface %p, async %p, blobsSize %Iu, blobData %p, countOfBlobs %p.\n", iface, async, blobsSize, blobData, countOfBlobs );
-    if (countOfBlobs) *countOfBlobs = 0;
-    return 0x80830008; /* E_GS_BLOB_NOT_FOUND */
+    if (!countOfBlobs) return E_POINTER;
+
+    const char *bnames[32];
+    for (UINT32 i = 0; i < last_read_blob_ctx.count; i++)
+    {
+        bnames[i] = last_read_blob_ctx.blob_names[i];
+    }
+    UINT32 cnt = last_read_blob_ctx.count;
+
+    struct x_game_save_container_data cdata;
+    memset(&cdata, 0, sizeof(cdata));
+    snprintf(cdata.container_name, sizeof(cdata.container_name), "%s", last_read_blob_ctx.container_name);
+
+    HRESULT hr = x_game_save_XGameSaveReadBlobData(iface, (XGameSaveContainerHandle)&cdata, bnames, &cnt, blobsSize, blobData);
+    *countOfBlobs = cnt;
+    return hr;
 }
 
 static HRESULT WINAPI x_game_save_XGameSaveCreateUpdate( IXGameSaveImpl3 *iface, XGameSaveContainerHandle container, const char *containerDisplayName, XGameSaveUpdateHandle *updateContext )
