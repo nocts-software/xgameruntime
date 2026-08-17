@@ -241,23 +241,44 @@ static HRESULT send_ipc_message(XodusMessageType msg_type, const BYTE *payload, 
     }
 
     /* Read 4-byte response len */
-    ret = read(ipc_socket_fd, &resp_payload_len, 4);
-    if (ret < 4 || resp_payload_len > resp_max)
     {
-        fprintf(stderr, "[GDK IPC] ERROR: Invalid response len %u from daemon\n", resp_payload_len);
+        SIZE_T len_read = 0;
+        while (len_read < 4)
+        {
+            ret = read(ipc_socket_fd, ((BYTE *)&resp_payload_len) + len_read, 4 - len_read);
+            if (ret <= 0)
+            {
+                fprintf(stderr, "[GDK IPC] ERROR: Connection lost reading response length\n");
+                ipc_cleanup();
+                return E_FAIL;
+            }
+            len_read += (SIZE_T)ret;
+        }
+    }
+
+    if (resp_payload_len > resp_max)
+    {
+        fprintf(stderr, "[GDK IPC] ERROR: Response len %u exceeds maximum buffer %zu\n", resp_payload_len, resp_max);
         ipc_cleanup();
         return E_FAIL;
     }
 
-    ret = read(ipc_socket_fd, out_resp, resp_payload_len);
-    if (ret < (ssize_t)resp_payload_len)
     {
-        fprintf(stderr, "[GDK IPC] ERROR: Incomplete read from daemon\n");
-        ipc_cleanup();
-        return E_FAIL;
+        SIZE_T total_payload_read = 0;
+        while (total_payload_read < resp_payload_len)
+        {
+            ret = read(ipc_socket_fd, out_resp + total_payload_read, resp_payload_len - total_payload_read);
+            if (ret <= 0)
+            {
+                fprintf(stderr, "[GDK IPC] ERROR: Connection lost reading response payload\n");
+                ipc_cleanup();
+                return E_FAIL;
+            }
+            total_payload_read += (SIZE_T)ret;
+        }
+        if (out_resp_len) *out_resp_len = total_payload_read;
     }
 
-    if (out_resp_len) *out_resp_len = (SIZE_T)ret;
     return S_OK;
 }
 

@@ -436,6 +436,23 @@ static void WINAPI x_threading_XTaskQueueCloseHandle( IXThreadingImpl *iface, XT
     }
 }
 
+struct threadpool_task {
+    XTaskQueueCallback *callback;
+    void *context;
+    UINT32 delayMs;
+};
+
+static VOID CALLBACK timer_queue_callback(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
+{
+    struct threadpool_task *task = (struct threadpool_task *)lpParameter;
+    if (task)
+    {
+        if (task->callback)
+            task->callback(task->context, FALSE);
+        free(task);
+    }
+}
+
 static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, void *callbackContext, XTaskQueueCallback *callback )
 {
     struct task_queue *tq = queue ? (struct task_queue *)queue : &default_process_queue;
@@ -450,7 +467,7 @@ static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *ifa
         tq = tq->comp_target;
 
     XTaskQueueDispatchMode mode = (port == XTaskQueuePort_Work) ? tq->work_mode : tq->comp_mode;
-    if (mode == XTaskQueueDispatchMode_Immediate)
+    if (mode == XTaskQueueDispatchMode_Immediate || mode == XTaskQueueDispatchMode_ThreadPool || mode == XTaskQueueDispatchMode_SerializedThreadPool)
     {
         callback( callbackContext, FALSE );
         return S_OK;
@@ -488,7 +505,40 @@ static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *ifa
 
 static HRESULT WINAPI x_threading_XTaskQueueSubmitDelayedCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, UINT32 delayMs, void *callbackContext, XTaskQueueCallback *callback )
 {
+    struct task_queue *tq = queue ? (struct task_queue *)queue : &default_process_queue;
     TRACE( "iface %p, queue %p, port %d, delayMs %d, callbackContext %p, callback %p\n", iface, queue, port, delayMs, callbackContext, callback );
+
+    if (!callback) return S_OK;
+
+    if (port == XTaskQueuePort_Work && tq->work_target)
+        tq = tq->work_target;
+    else if (port == XTaskQueuePort_Completion && tq->comp_target)
+        tq = tq->comp_target;
+
+    XTaskQueueDispatchMode mode = (port == XTaskQueuePort_Work) ? tq->work_mode : tq->comp_mode;
+    if (mode == XTaskQueueDispatchMode_ThreadPool || mode == XTaskQueueDispatchMode_SerializedThreadPool || mode == XTaskQueueDispatchMode_Immediate)
+    {
+        if (delayMs > 0)
+        {
+            struct threadpool_task *task = malloc(sizeof(*task));
+            if (task)
+            {
+                HANDLE hTimer = NULL;
+                task->callback = callback;
+                task->context = callbackContext;
+                task->delayMs = delayMs;
+                if (CreateTimerQueueTimer(&hTimer, NULL, timer_queue_callback, task, delayMs, 0, WT_EXECUTEONLYONCE))
+                {
+                    return S_OK;
+                }
+                free(task);
+            }
+        }
+
+        callback( callbackContext, FALSE );
+        return S_OK;
+    }
+
     return x_threading_XTaskQueueSubmitCallback( iface, queue, port, callbackContext, callback );
 }
 
