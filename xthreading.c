@@ -295,15 +295,19 @@ struct task_queue
     struct task_callback_entry *comp_tail;
     CRITICAL_SECTION cs;
     BOOL cs_inited;
+    HANDLE work_event;
+    HANDLE comp_event;
 };
 
-static struct task_queue default_process_queue = { 0, 0, 1, NULL, NULL, NULL, NULL, NULL, NULL, {0}, FALSE };
+static struct task_queue default_process_queue = { 0, 0, 1, NULL, NULL, NULL, NULL, NULL, NULL, {0}, FALSE, NULL, NULL };
 
 static void init_queue_cs(struct task_queue *tq)
 {
     if (!tq->cs_inited)
     {
         InitializeCriticalSection(&tq->cs);
+        tq->work_event = CreateEventW(NULL, FALSE, FALSE, NULL);
+        tq->comp_event = CreateEventW(NULL, FALSE, FALSE, NULL);
         tq->cs_inited = TRUE;
     }
 }
@@ -370,6 +374,8 @@ static BOOLEAN WINAPI x_threading_XTaskQueueDispatch( IXThreadingImpl *iface, XT
 {
     struct task_queue *tq = queue ? (struct task_queue *)queue : &default_process_queue;
     struct task_callback_entry *entry = NULL;
+    HANDLE evt;
+    DWORD start_time = GetTickCount();
 
     if (port == XTaskQueuePort_Work && tq->work_target)
         tq = tq->work_target;
@@ -377,38 +383,63 @@ static BOOLEAN WINAPI x_threading_XTaskQueueDispatch( IXThreadingImpl *iface, XT
         tq = tq->comp_target;
 
     init_queue_cs(tq);
-    EnterCriticalSection(&tq->cs);
+    evt = (port == XTaskQueuePort_Work) ? tq->work_event : tq->comp_event;
 
-    if (port == XTaskQueuePort_Work)
+    for (;;)
     {
-        if (tq->work_head)
+        EnterCriticalSection(&tq->cs);
+        if (port == XTaskQueuePort_Work)
         {
-            entry = tq->work_head;
-            tq->work_head = entry->next;
-            if (!tq->work_head) tq->work_tail = NULL;
+            if (tq->work_head)
+            {
+                entry = tq->work_head;
+                tq->work_head = entry->next;
+                if (!tq->work_head) tq->work_tail = NULL;
+            }
         }
-    }
-    else
-    {
-        if (tq->comp_head)
+        else
         {
-            entry = tq->comp_head;
-            tq->comp_head = entry->next;
-            if (!tq->comp_head) tq->comp_tail = NULL;
+            if (tq->comp_head)
+            {
+                entry = tq->comp_head;
+                tq->comp_head = entry->next;
+                if (!tq->comp_head) tq->comp_tail = NULL;
+            }
         }
-    }
+        LeaveCriticalSection(&tq->cs);
 
-    LeaveCriticalSection(&tq->cs);
-
-    if (entry)
-    {
-        TRACE( "Dispatching callback %p (ctx %p) on port %d\n", entry->callback, entry->context, port );
-        if (entry->callback)
+        if (entry)
         {
-            entry->callback( entry->context, FALSE );
+            TRACE( "Dispatching callback %p (ctx %p) on port %d\n", entry->callback, entry->context, port );
+            if (entry->callback)
+            {
+                entry->callback( entry->context, FALSE );
+            }
+            free( entry );
+            return TRUE;
         }
-        free( entry );
-        return TRUE;
+
+        if (timeoutInMs == 0)
+            break;
+
+        if (timeoutInMs != INFINITE)
+        {
+            DWORD elapsed = GetTickCount() - start_time;
+            if (elapsed >= timeoutInMs)
+                break;
+            DWORD remaining = timeoutInMs - elapsed;
+            if (evt)
+                WaitForSingleObject(evt, remaining > 50 ? 50 : remaining);
+            else
+                Sleep(remaining > 10 ? 10 : remaining);
+        }
+        else
+        {
+            if (evt)
+                WaitForSingleObject(evt, 50);
+            else
+                Sleep(10);
+        }
     }
 
     return FALSE;
@@ -431,6 +462,8 @@ static void WINAPI x_threading_XTaskQueueCloseHandle( IXThreadingImpl *iface, XT
             while (cur) { next = cur->next; free(cur); cur = next; }
             LeaveCriticalSection(&tq->cs);
             DeleteCriticalSection(&tq->cs);
+            if (tq->work_event) CloseHandle(tq->work_event);
+            if (tq->comp_event) CloseHandle(tq->comp_event);
             free( tq );
         }
     }
@@ -441,6 +474,18 @@ struct threadpool_task {
     void *context;
     UINT32 delayMs;
 };
+
+static DWORD WINAPI thread_pool_work_callback(LPVOID lpParameter)
+{
+    struct threadpool_task *task = (struct threadpool_task *)lpParameter;
+    if (task)
+    {
+        if (task->callback)
+            task->callback(task->context, FALSE);
+        free(task);
+    }
+    return 0;
+}
 
 static VOID CALLBACK timer_queue_callback(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 {
@@ -467,8 +512,23 @@ static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *ifa
         tq = tq->comp_target;
 
     XTaskQueueDispatchMode mode = (port == XTaskQueuePort_Work) ? tq->work_mode : tq->comp_mode;
-    if (mode == XTaskQueueDispatchMode_Immediate || mode == XTaskQueueDispatchMode_ThreadPool || mode == XTaskQueueDispatchMode_SerializedThreadPool)
+    if (mode == XTaskQueueDispatchMode_Immediate)
     {
+        callback( callbackContext, FALSE );
+        return S_OK;
+    }
+    else if (mode == XTaskQueueDispatchMode_ThreadPool || mode == XTaskQueueDispatchMode_SerializedThreadPool)
+    {
+        struct threadpool_task *task = malloc(sizeof(*task));
+        if (task)
+        {
+            task->callback = callback;
+            task->context = callbackContext;
+            task->delayMs = 0;
+            if (QueueUserWorkItem(thread_pool_work_callback, task, WT_EXECUTEDEFAULT))
+                return S_OK;
+            free(task);
+        }
         callback( callbackContext, FALSE );
         return S_OK;
     }
@@ -500,6 +560,8 @@ static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *ifa
     }
 
     LeaveCriticalSection(&tq->cs);
+    if (port == XTaskQueuePort_Work && tq->work_event) SetEvent(tq->work_event);
+    else if (port == XTaskQueuePort_Completion && tq->comp_event) SetEvent(tq->comp_event);
     return S_OK;
 }
 
@@ -516,25 +578,33 @@ static HRESULT WINAPI x_threading_XTaskQueueSubmitDelayedCallback( IXThreadingIm
         tq = tq->comp_target;
 
     XTaskQueueDispatchMode mode = (port == XTaskQueuePort_Work) ? tq->work_mode : tq->comp_mode;
-    if (mode == XTaskQueueDispatchMode_ThreadPool || mode == XTaskQueueDispatchMode_SerializedThreadPool || mode == XTaskQueueDispatchMode_Immediate)
+    if (mode == XTaskQueueDispatchMode_ThreadPool || mode == XTaskQueueDispatchMode_SerializedThreadPool)
     {
-        if (delayMs > 0)
+        struct threadpool_task *task = malloc(sizeof(*task));
+        if (task)
         {
-            struct threadpool_task *task = malloc(sizeof(*task));
-            if (task)
+            task->callback = callback;
+            task->context = callbackContext;
+            task->delayMs = delayMs;
+            if (delayMs > 0)
             {
                 HANDLE hTimer = NULL;
-                task->callback = callback;
-                task->context = callbackContext;
-                task->delayMs = delayMs;
                 if (CreateTimerQueueTimer(&hTimer, NULL, timer_queue_callback, task, delayMs, 0, WT_EXECUTEONLYONCE))
-                {
                     return S_OK;
-                }
-                free(task);
             }
+            else
+            {
+                if (QueueUserWorkItem(thread_pool_work_callback, task, WT_EXECUTEDEFAULT))
+                    return S_OK;
+            }
+            free(task);
         }
 
+        callback( callbackContext, FALSE );
+        return S_OK;
+    }
+    else if (mode == XTaskQueueDispatchMode_Immediate)
+    {
         callback( callbackContext, FALSE );
         return S_OK;
     }

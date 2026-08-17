@@ -370,20 +370,21 @@ static HRESULT WINAPI x_package_XPackageMountWithUiResult( IXPackageImpl4 *iface
 
 static HRESULT WINAPI x_package_XPackageEnumeratePackages3( IXPackageImpl4 *iface, XPackageKind kind, XPackageEnumerationScope scope, void *context, XPackageEnumerationCallback *callback )
 {
-    FIXME( "iface %p, kind %d, scope %d, context %p, callback %p stub!\n", iface, kind, scope, context, callback );
-    return E_NOTIMPL;
+    return x_package_XPackageEnumeratePackages( iface, kind, scope, context, callback );
 }
 
 static HRESULT WINAPI x_package_XPackageRegisterPackageInstalled3( IXPackageImpl4 *iface, XTaskQueueHandle queue, void *context, XPackageInstalledCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_package_XPackageGetPackageKind( IXPackageImpl4 *iface, const char *packageIdentifier, XPackageKind *kind )
 {
-    FIXME( "iface %p, packageIdentifier %s, kind %p stub!\n", iface, debugstr_a( packageIdentifier ), kind );
-    return E_NOTIMPL;
+    TRACE( "iface %p, packageIdentifier %s, kind %p\n", iface, debugstr_a( packageIdentifier ), kind );
+    if (kind) *kind = XPackageKind_Game;
+    return S_OK;
 }
 
 static const struct IXPackageImpl4Vtbl x_package_vtbl =

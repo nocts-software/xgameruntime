@@ -19,6 +19,7 @@
  */
 
 #include <initguid.h>
+#include <wchar.h>
 #include "private.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(xgameruntime);
@@ -44,33 +45,60 @@ static ULONG WINAPI dummy_inspectable_Release(IUnknown *iface)
     return 1;
 }
 
-static HRESULT WINAPI dummy_stub_method(void *iface, void *arg1, void *arg2, void *arg3)
+static HRESULT WINAPI dummy_inspectable_GetIids(IUnknown *iface, ULONG *count, GUID **iids)
 {
-    TRACE("dummy_stub_method called on %p, arg1 %p, arg2 %p, arg3 %p.\n", iface, arg1, arg2, arg3);
-    if (arg1 && (ULONG_PTR)arg1 > 0x10000 && !IsBadWritePtr(arg1, sizeof(void*))) *(void**)arg1 = iface;
-    if (arg2 && (ULONG_PTR)arg2 > 0x10000 && !IsBadWritePtr(arg2, sizeof(void*))) *(void**)arg2 = iface;
-    if (arg3 && (ULONG_PTR)arg3 > 0x10000 && !IsBadWritePtr(arg3, sizeof(void*))) *(void**)arg3 = iface;
+    if (count) *count = 0;
+    if (iids) *iids = NULL;
     return S_OK;
 }
 
+static HRESULT WINAPI dummy_inspectable_GetRuntimeClassName(IUnknown *iface, void **className)
+{
+    if (className) *className = NULL;
+    return S_OK;
+}
+
+static HRESULT WINAPI dummy_inspectable_GetTrustLevel(IUnknown *iface, DWORD *trustLevel)
+{
+    if (trustLevel) *trustLevel = 0;
+    return S_OK;
+}
+
+#define STUB_METHOD(idx) \
+static HRESULT WINAPI dummy_stub_method_##idx(void *iface, void *a1, void *a2, void *a3, void *a4, void *a5) { \
+    void *caller = __builtin_return_address(0); \
+    fprintf(stderr, "[XGDK VTABLE] dummy_inspectable method[%d] called on %p by %p (args: %p, %p, %p, %p, %p)\n", idx, iface, caller, a1, a2, a3, a4, a5); \
+    return S_OK; \
+}
+
+STUB_METHOD(6)
+STUB_METHOD(7)
+STUB_METHOD(8)
+STUB_METHOD(9)
+STUB_METHOD(10)
+STUB_METHOD(11)
+STUB_METHOD(12)
+STUB_METHOD(13)
+STUB_METHOD(14)
+STUB_METHOD(15)
 
 static const void *dummy_inspectable_vtbl[] = {
     dummy_inspectable_QueryInterface,
     dummy_inspectable_AddRef,
     dummy_inspectable_Release,
-    dummy_inspectable_QueryInterface,
-    dummy_inspectable_QueryInterface,
-    dummy_inspectable_QueryInterface,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method,
-    dummy_stub_method
+    dummy_inspectable_GetIids,
+    dummy_inspectable_GetRuntimeClassName,
+    dummy_inspectable_GetTrustLevel,
+    dummy_stub_method_6,
+    dummy_stub_method_7,
+    dummy_stub_method_8,
+    dummy_stub_method_9,
+    dummy_stub_method_10,
+    dummy_stub_method_11,
+    dummy_stub_method_12,
+    dummy_stub_method_13,
+    dummy_stub_method_14,
+    dummy_stub_method_15
 };
 
 static struct {
@@ -135,12 +163,46 @@ static struct {
     const void **vtbl;
 } dummy_activation_factory_obj = { dummy_factory_vtbl };
 
+static const WCHAR *get_hstring_buffer(void *hstring)
+{
+    if (!hstring) return L"<null>";
+    typedef const WCHAR* (WINAPI *pfn_WindowsGetStringRawBuffer)(void *string, UINT32 *length);
+    static pfn_WindowsGetStringRawBuffer pWindowsGetStringRawBuffer = NULL;
+    if (!pWindowsGetStringRawBuffer)
+    {
+        HMODULE hCombase = GetModuleHandleA("combase.dll");
+        if (!hCombase) hCombase = LoadLibraryA("combase.dll");
+        if (hCombase)
+            pWindowsGetStringRawBuffer = (pfn_WindowsGetStringRawBuffer)GetProcAddress(hCombase, "WindowsGetStringRawBuffer");
+    }
+    if (pWindowsGetStringRawBuffer)
+    {
+        UINT32 len = 0;
+        const WCHAR *wstr = pWindowsGetStringRawBuffer(hstring, &len);
+        if (wstr) return wstr;
+    }
+    return L"<unknown>";
+}
+
 HRESULT WINAPI DllGetActivationFactory(void *classid, void **factory)
 {
-    TRACE( "classid %p, factory %p.\n", classid, factory );
+    const WCHAR *str = get_hstring_buffer(classid);
+    fprintf(stderr, "[XGDK DllGetActivationFactory] classid=%ls (%p), factory=%p\n", str ? str : L"(null)", classid, factory);
     if (!factory) return E_POINTER;
-    *factory = get_winrt_package_factory();
-    return S_OK;
+
+    if (str && (wcsstr(str, L"Windows.ApplicationModel.") ||
+                wcsstr(str, L"Windows.Gaming.Preview.") ||
+                wcsstr(str, L"Windows.Gaming.XboxLive.") ||
+                wcsstr(str, L"Windows.Internal.System.") ||
+                wcsstr(str, L"Windows.UI.ViewManagement.") ||
+                wcsstr(str, L"Windows.UI.Core.")))
+    {
+        *factory = get_winrt_package_factory();
+        return S_OK;
+    }
+
+    *factory = NULL;
+    return REGDB_E_CLASSNOTREG;
 }
 
 

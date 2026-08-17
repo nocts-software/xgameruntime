@@ -70,14 +70,29 @@ static ULONG WINAPI x_persistent_local_storage_Release( IXPersistentLocalStorage
     return ref;
 }
 
+#include <shlobj.h>
+
 static void get_pls_path(char *out, size_t max_len)
 {
+    char local_app_data[MAX_PATH] = {0};
     const char *pfn = getenv("LOCAL_APP_MODEL_PACKAGE_FAMILY_NAME");
-    if (pfn && pfn[0]) {
-        snprintf(out, max_len, "C:\\users\\steamuser\\AppData\\Local\\Packages\\%s\\LocalState\\", pfn);
+    
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, local_app_data)) && local_app_data[0]) {
+        if (pfn && pfn[0]) {
+            snprintf(out, max_len, "%s\\Packages\\%s\\LocalState\\", local_app_data, pfn);
+        } else {
+            snprintf(out, max_len, "%s\\Packages\\LocalState\\", local_app_data);
+        }
     } else {
-        snprintf(out, max_len, "C:\\users\\steamuser\\AppData\\Local\\Packages\\LocalState\\");
+        if (pfn && pfn[0]) {
+            snprintf(out, max_len, "C:\\users\\steamuser\\AppData\\Local\\Packages\\%s\\LocalState\\", pfn);
+        } else {
+            snprintf(out, max_len, "C:\\users\\steamuser\\AppData\\Local\\Packages\\LocalState\\");
+        }
     }
+
+    /* Ensure directory tree exists */
+    SHCreateDirectoryExA(NULL, out, NULL);
 }
 
 static HRESULT WINAPI x_persistent_local_storage_XPersistentLocalStorageGetPath( IXPersistentLocalStorageImpl3 *iface, SIZE_T pathSize, char *path, SIZE_T *pathUsed )

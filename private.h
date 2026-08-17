@@ -147,4 +147,14 @@ extern HWND create_core_window_host(void);
 void complete_async(XAsyncBlock *async);
 void complete_async_with_size(XAsyncBlock *async, SIZE_T required_size);
 
+struct initialize_options
+{
+    UINT32 unk;
+    BOOL isInline;
+    const char *gameConfig;
+};
+
+HRESULT WINAPI InitializeApiImpl( ULONG gdkVer, ULONG gsVer );
+HRESULT WINAPI InitializeApiImplEx2( ULONG gdkVer, ULONG gsVer, char mode, const struct initialize_options *options );
+HRESULT WINAPI UninitializeApiImpl(void);
 HRESULT WINAPI QueryApiImpl( const GUID *classId, REFIID interfaceId, void **out );
