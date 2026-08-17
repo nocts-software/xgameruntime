@@ -189,6 +189,17 @@ HRESULT WINAPI InitializeApiImpl( ULONG gdkVer, ULONG gsVer )
     return InitializeApiImplEx2( gdkVer, gsVer, 0, NULL );
 }
 
+/**
+ * Entrypoint for Microsoft Gaming Desktop Runtime (GDK) COM interface acquisition.
+ * 
+ * When a GDK title initializes or requests an API interface (e.g. XUser, XGameSave, XStore, XThreading),
+ * the Microsoft GDK flat export thunks invoke `QueryApiImpl` with the corresponding CLSID and IID.
+ * 
+ * @param clsid Class Identifier for the requested GDK subsystem.
+ * @param iid Interface Identifier for the specific interface version.
+ * @param out Pointer to store the acquired interface vtable pointer.
+ * @return S_OK on success, or E_NOINTERFACE / E_POINTER on failure.
+ */
 HRESULT WINAPI QueryApiImpl( REFCLSID clsid, REFIID iid, void **out )
 {
     FIXME( "QueryApiImpl clsid %s, iid %s, out %p.\n", debugstr_guid( clsid ), debugstr_guid( iid ), out );

@@ -39,8 +39,15 @@ This solution provides comprehensive inter-process communication (IPC) wiring wi
 
 - **🧵 Task Queues & Asynchronous Dispatching (`XThreading`)**:
   - Full implementation of `XTaskQueue` supporting FIFO Work and Completion callback ports.
-  - Thread-safe callback registration, dispatching (`XTaskQueueDispatch`), and asynchronous notification helpers (`complete_async`).
+  - Support for composite task queues (`XTaskQueueCreateComposite`) with direct port targeting and immediate dispatch modes (`XTaskQueueDispatchMode_Immediate`).
+  - Thread-safe callback registration, delayed worker callbacks, dispatching (`XTaskQueueDispatch`), and asynchronous notification helpers (`complete_async`, `complete_async_with_size`).
   - Automatic integration with game main loops and frame dispatchers.
+
+- **💾 Connected Storage & Save Game Subsystem (`XGameSave`)**:
+  - Full implementation of `XGameSaveInitializeProvider` and container management (`XGameSaveCreateContainer`, `XGameSaveCloseContainer`).
+  - Synchronous and asynchronous blob reading and writing (`XGameSaveReadBlobDataAsync`, `XGameSaveReadBlobDataResult`, `XGameSaveSubmitBlobWrite`).
+  - Accurate dynamic buffer sizing (`XAsyncGetResultSize`) preventing out-of-memory or buffer misalignment faults in Godot, Unreal, and custom game engines.
+  - Native filesystem mapping for save containers to local and cloud-synced directory structures.
 
 - **💾 Persistent Local Storage (PLS) (`XPersistentLocalStorage`)**:
   - Implements `XPersistentLocalStorageGetPathSize` and `XPersistentLocalStorageGetPath`.

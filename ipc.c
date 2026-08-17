@@ -18,12 +18,18 @@
 #include "ipc.h"
 #include "private.h"
 
-
-
 WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
 
 static int ipc_socket_fd = -1;
 
+/**
+ * Connects to the active `xodus-service` background daemon via Unix domain socket.
+ * 
+ * Iterates through potential socket paths ($XDG_RUNTIME_DIR/xodus.sock, /tmp/xodus.sock, /run/user/$UID/xodus.sock)
+ * and establishes a stream connection to service title authentication, licensing, and save sync requests.
+ * 
+ * @return Active file descriptor on success, or -1 if the daemon is unreachable.
+ */
 static int connect_to_daemon(void)
 {
     const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
