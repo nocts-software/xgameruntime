@@ -61,6 +61,13 @@ static HRESULT WINAPI x_user_QueryInterface( IXUserImpl6 *iface, REFIID iid, voi
         return S_OK;
     }
 
+    if (IsEqualGUID( iid, &IID_IXUserDeviceImpl ) ||
+        IsEqualGUID( iid, &IID_IXUserDeviceImpl2 ))
+    {
+        IXUserDeviceImpl2_AddRef( *out = &impl->IXUserDeviceImpl2_iface );
+        return S_OK;
+    }
+
     FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
     *out = NULL;
     return E_NOINTERFACE;
@@ -148,9 +155,13 @@ static void ensure_user_info(void)
         {
             if (info.xuid[0])
             {
-                default_user_obj.xuid = strtoull(info.xuid, NULL, 10);
-                if (default_user_obj.xuid == 0)
-                    default_user_obj.xuid = strtoull(info.xuid, NULL, 16);
+                char *end = NULL;
+                unsigned long long parsed = strtoull(info.xuid, &end, 10);
+                if ((end && *end != '\0') || (strlen(info.xuid) == 16 && (info.xuid[0] == '0' && info.xuid[1] == '0')))
+                {
+                    parsed = strtoull(info.xuid, NULL, 16);
+                }
+                if (parsed != 0) default_user_obj.xuid = parsed;
             }
             if (info.gamertag[0])
             {
@@ -164,11 +175,38 @@ static void ensure_user_info(void)
     }
 }
 
+struct user_change_listener {
+    XTaskQueueHandle queue;
+    void *context;
+    XUserChangeEventCallback *callback;
+    UINT64 token;
+};
+
+static struct user_change_listener g_user_change_listeners[16];
+static int g_user_change_listener_count = 0;
+
+static void fire_user_change_event(XUserLocalId local_id, XUserChangeEvent event)
+{
+    int i;
+    for (i = 0; i < g_user_change_listener_count; i++)
+    {
+        if (g_user_change_listeners[i].callback)
+        {
+            TRACE("[GDK XUser] Firing user change event %d to listener %d (cb %p, ctx %p)\n",
+                  event, i, g_user_change_listeners[i].callback, g_user_change_listeners[i].context);
+            g_user_change_listeners[i].callback(g_user_change_listeners[i].context, local_id, event);
+        }
+    }
+}
+
 static HRESULT WINAPI x_user_XUserAddAsync( IXUserImpl6 *iface, XUserAddOptions options, XAsyncBlock *async )
 {
-    fprintf(stderr, "[GDK XUser] XUserAddAsync called: options=0x%x, async=%p\n", options, async);
+    XUserLocalId local_id = {1};
+    fprintf(stderr, "[GDK XUser] XUserAddAsync called: options=0x%x, async=%p (queue=%p, ctx=%p, cb=%p)\n",
+            options, async, async ? async->queue : NULL, async ? async->context : NULL, async ? async->callback : NULL);
     ensure_user_info();
     complete_async(async);
+    fire_user_change_event(local_id, XUserChangeEvent_SignedInAgain);
     return S_OK;
 }
 
@@ -176,6 +214,15 @@ static HRESULT WINAPI x_user_XUserAddResult( IXUserImpl6 *iface, XAsyncBlock *as
 {
     ensure_user_info();
     fprintf(stderr, "[GDK XUser] XUserAddResult called: async=%p, newUser=%p\n", async, newUser);
+    if (async)
+    {
+        void *state = *(void**)&async->internal[0];
+        if (state)
+        {
+            free(state);
+            *(void**)&async->internal[0] = NULL;
+        }
+    }
     if (newUser)
     {
         *newUser = (XUserHandle)&default_user_obj;
@@ -381,15 +428,15 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureAsync( IXUserImpl6 *iface,
     SIZE_T i;
     ensure_user_info();
     register_token_req(async, method, url, bodyBuffer, bodySize);
-    TRACE( "[GDK XUser] XUserGetTokenAndSignatureAsync: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
+    ERR( "[GDK XUser] XUserGetTokenAndSignatureAsync: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
            options, method ? method : "", url ? url : "", headerCount, bodySize, async );
     for (i = 0; i < headerCount && headers; i++)
     {
-        TRACE( "  Header[%zu]: '%s' = '%s'\n", i, headers[i].name ? headers[i].name : "", headers[i].value ? headers[i].value : "" );
+        ERR( "  Header[%zu]: '%s' = '%s'\n", i, headers[i].name ? headers[i].name : "", headers[i].value ? headers[i].value : "" );
     }
     if (bodySize > 0 && bodyBuffer)
     {
-        TRACE( "  Body (len %zu): '%.*s'\n", bodySize, (int)(bodySize > 256 ? 256 : bodySize), (const char *)bodyBuffer );
+        ERR( "  Body (len %zu): '%.*s'\n", bodySize, (int)(bodySize > 256 ? 256 : bodySize), (const char *)bodyBuffer );
     }
     complete_async(async);
     return S_OK;
@@ -462,7 +509,7 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Async( IXUserImpl6 *i
     if (url && url[0]) WideCharToMultiByte(CP_UTF8, 0, url, -1, url_a, sizeof(url_a) - 1, NULL, NULL);
 
     register_token_req(async, method_a, url_a, bodyBuffer, bodySize);
-    TRACE( "[GDK XUser] XUserGetTokenAndSignatureUtf16Async: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
+    ERR( "[GDK XUser] XUserGetTokenAndSignatureUtf16Async: options=0x%x, method='%s', url='%s', headerCount=%zu, bodySize=%zu, async=%p\n",
            options, method_a, url_a, headerCount, bodySize, async );
     for (i = 0; i < headerCount && headers; i++)
     {
@@ -470,11 +517,11 @@ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureUtf16Async( IXUserImpl6 *i
         char val_a[512] = {0};
         if (headers[i].name) WideCharToMultiByte(CP_UTF8, 0, headers[i].name, -1, name_a, sizeof(name_a) - 1, NULL, NULL);
         if (headers[i].value) WideCharToMultiByte(CP_UTF8, 0, headers[i].value, -1, val_a, sizeof(val_a) - 1, NULL, NULL);
-        TRACE( "  HeaderUtf16[%zu]: '%s' = '%s'\n", i, name_a, val_a );
+        ERR( "  HeaderUtf16[%zu]: '%s' = '%s'\n", i, name_a, val_a );
     }
     if (bodySize > 0 && bodyBuffer)
     {
-        TRACE( "  Body (len %zu): '%.*s'\n", bodySize, (int)(bodySize > 256 ? 256 : bodySize), (const char *)bodyBuffer );
+        ERR( "  Body (len %zu): '%.*s'\n", bodySize, (int)(bodySize > 256 ? 256 : bodySize), (const char *)bodyBuffer );
     }
     /* ERR-level to always capture Athena/Ares requests for debugging */
     if (strstr(url_a, "ares") || strstr(url_a, "athena") || strstr(url_a, "msrareservices"))
@@ -592,13 +639,30 @@ static HRESULT WINAPI x_user_XUserResolveIssueWithUiUtf16Result( IXUserImpl6 *if
 static HRESULT WINAPI x_user_XUserRegisterForChangeEvent( IXUserImpl6 *iface, XTaskQueueHandle queue, void *context, XUserChangeEventCallback *callback, XTaskQueueRegistrationToken *token )
 {
     TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
-    if (token) token->token = 1;
+    if (g_user_change_listener_count < 16)
+    {
+        g_user_change_listeners[g_user_change_listener_count].queue = queue;
+        g_user_change_listeners[g_user_change_listener_count].context = context;
+        g_user_change_listeners[g_user_change_listener_count].callback = callback;
+        g_user_change_listeners[g_user_change_listener_count].token = g_user_change_listener_count + 1;
+        if (token) token->token = g_user_change_listener_count + 1;
+        g_user_change_listener_count++;
+    }
     return S_OK;
 }
 
 static BOOLEAN WINAPI x_user_XUserUnregisterForChangeEvent( IXUserImpl6 *iface, XTaskQueueRegistrationToken token, BOOLEAN wait )
 {
+    int i;
     TRACE( "iface %p, token %p, wait %d\n", iface, &token, wait );
+    for (i = 0; i < g_user_change_listener_count; i++)
+    {
+        if (g_user_change_listeners[i].token == token.token)
+        {
+            g_user_change_listeners[i].callback = NULL;
+            break;
+        }
+    }
     return TRUE;
 }
 
@@ -624,8 +688,13 @@ static HRESULT WINAPI x_user_XUserAddByIdWithUiAsync( IXUserImpl6 *iface, UINT64
 static HRESULT WINAPI x_user_XUserAddByIdWithUiResult( IXUserImpl6 *iface, XAsyncBlock *async, XUserHandle *newUser )
 {
     TRACE( "iface %p, async %p, newUser %p\n", iface, async, newUser );
-    if (newUser) *newUser = (XUserHandle)(UINT_PTR)1;
-    return S_OK;
+    if (newUser)
+    {
+        ensure_user_info();
+        *newUser = (XUserHandle)&default_user_obj;
+        return S_OK;
+    }
+    return E_POINTER;
 }
 
 static char g_last_msa_scope[512] = {0};
@@ -857,50 +926,61 @@ static ULONG WINAPI x_user_device_Release( IXUserDeviceImpl2 *iface )
 
 static HRESULT WINAPI x_user_device_XUserFindForDevice( IXUserDeviceImpl2 *iface, const APP_LOCAL_DEVICE_ID *deviceId, XUserHandle *handle )
 {
-    FIXME( "iface %p, deviceId %p, handle %p stub!\n", iface, deviceId, handle );
-    return E_NOTIMPL;
+    TRACE( "iface %p, deviceId %p, handle %p\n", iface, deviceId, handle );
+    if (!handle) return E_POINTER;
+    ensure_user_info();
+    *handle = (XUserHandle)&default_user_obj;
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_device_XUserRegisterForDeviceAssociationChanged( IXUserDeviceImpl2 *iface, XTaskQueueHandle queue, void *context, XUserDeviceAssociationChangedCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_user_device_XUserUnregisterForDeviceAssociationChanged( IXUserDeviceImpl2 *iface, XTaskQueueRegistrationToken token, BOOLEAN wait )
 {
-    FIXME( "iface %p, token %p, wait %d stub!\n", iface, &token, wait );
-    return FALSE;
+    TRACE( "iface %p, token %p, wait %d\n", iface, &token, wait );
+    return TRUE;
 }
 
 static HRESULT WINAPI x_user_device_XUserGetDefaultAudioEndpointUtf16( IXUserDeviceImpl2 *iface, XUserLocalId user, XUserDefaultAudioEndpointKind defaultAudioEndpointKind, SIZE_T endpointIdUtf16Count, WCHAR *endpointIdUtf16, SIZE_T *endpointIdUtf16Used )
 {
-    FIXME( "iface %p, user %p, defaultAudioEndpointKind %d, endpointIdUtf16Count %Iu, endpointIdUtf16 %p, endpointIdUtf16Used %p stub!\n", iface, &user, defaultAudioEndpointKind, endpointIdUtf16Count, endpointIdUtf16, endpointIdUtf16Used );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %llu, defaultAudioEndpointKind %d, endpointIdUtf16Count %Iu, endpointIdUtf16 %p, endpointIdUtf16Used %p\n",
+           iface, (unsigned long long)user.value, defaultAudioEndpointKind, endpointIdUtf16Count, endpointIdUtf16, endpointIdUtf16Used );
+    if (endpointIdUtf16Used) *endpointIdUtf16Used = 1;
+    if (endpointIdUtf16 && endpointIdUtf16Count > 0) endpointIdUtf16[0] = L'\0';
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_device_XUserRegisterForDefaultAudioEndpointUtf16Changed( IXUserDeviceImpl2 *iface, XTaskQueueHandle queue, void *context, XUserDefaultAudioEndpointUtf16ChangedCallback *callback, XTaskQueueRegistrationToken *token )
 {
-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
-    return E_NOTIMPL;
+    TRACE( "iface %p, queue %p, context %p, callback %p, token %p\n", iface, queue, context, callback, token );
+    if (token) token->token = 1;
+    return S_OK;
 }
 
 static BOOLEAN WINAPI x_user_device_XUserUnregisterForDefaultAudioEndpointUtf16Changed( IXUserDeviceImpl2 *iface, XTaskQueueRegistrationToken token, BOOLEAN wait )
 {
-    FIXME( "iface %p, token %p, wait %d stub!\n", iface, &token, wait );
-    return FALSE;
+    TRACE( "iface %p, token %p, wait %d\n", iface, &token, wait );
+    return TRUE;
 }
 
 static HRESULT WINAPI x_user_device_XUserFindControllerForUserWithUiAsync( IXUserDeviceImpl2 *iface, XUserHandle user, XAsyncBlock *async )
 {
-    FIXME( "iface %p, user %p, async %p stub!\n", iface, user, async );
-    return E_NOTIMPL;
+    TRACE( "iface %p, user %p, async %p\n", iface, user, async );
+    complete_async(async);
+    return S_OK;
 }
 
 static HRESULT WINAPI x_user_device_XUserFindControllerForUserWithUiResult( IXUserDeviceImpl2 *iface, XAsyncBlock *async, APP_LOCAL_DEVICE_ID *deviceId )
 {
-    FIXME( "iface %p, async %p, deviceId %p stub!\n", iface, async, deviceId );
-    return E_NOTIMPL;
+    TRACE( "iface %p, async %p, deviceId %p\n", iface, async, deviceId );
+    if (!deviceId) return E_POINTER;
+    memset(deviceId, 0, sizeof(*deviceId));
+    return S_OK;
 }
 
 static const struct IXUserDeviceImpl2Vtbl x_user_device_vtbl =

@@ -34,7 +34,6 @@ static inline void xgdk_log(const char *level, const char *func, int line, const
     struct timeval tv;
     struct tm *tm_info;
     va_list args;
-    FILE *log_f;
     time_t sec;
 
     gettimeofday(&tv, NULL);
@@ -44,16 +43,6 @@ static inline void xgdk_log(const char *level, const char *func, int line, const
         strftime(time_str, sizeof(time_str), "%H:%M:%S", tm_info);
     else
         snprintf(time_str, sizeof(time_str), "??:??:??");
-
-    log_f = fopen("/tmp/xodus-gdk.log", "a");
-    if (log_f) {
-        fprintf(log_f, "[XGDK %s][%s.%03ld][TID %04lx][%s:%d] ",
-                level, time_str, (long)(tv.tv_usec / 1000), (unsigned long)GetCurrentThreadId(), func, line);
-        va_start(args, fmt);
-        vfprintf(log_f, fmt, args);
-        va_end(args);
-        fclose(log_f);
-    }
 
     fprintf(stderr, "[XGDK %s][%s.%03ld][TID %04lx][%s:%d] ",
             level, time_str, (long)(tv.tv_usec / 1000), (unsigned long)GetCurrentThreadId(), func, line);

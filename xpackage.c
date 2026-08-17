@@ -261,6 +261,11 @@ static HRESULT WINAPI x_package_XPackageEnumeratePackages( IXPackageImpl4 *iface
     const char *title_id = getenv("XODUS_TITLE_ID");
 
     TRACE( "iface %p, kind %d, scope %d, context %p, callback %p\n", iface, kind, scope, context, callback );
+    if (kind == XPackageKind_Content)
+    {
+        return S_OK;
+    }
+
     if (!pfn || !pfn[0]) pfn = "XodusGame_8wekyb3d8bbwe";
     if (!title_name || !title_name[0]) title_name = "Xodus Game";
     if (!publisher || !publisher[0]) publisher = "Xbox Game Studios";
@@ -274,8 +279,10 @@ static HRESULT WINAPI x_package_XPackageEnumeratePackages( IXPackageImpl4 *iface
     details.publisher = publisher;
     details.storeId = store_id;
     details.titleID = title_id;
-    details.kind = kind;
+    details.kind = XPackageKind_Game;
     details.installing = FALSE;
+    details.index = 0;
+    details.count = 1;
     if (callback) callback(context, &details);
     return S_OK;
 }
@@ -328,6 +335,11 @@ static HRESULT WINAPI x_package_XPackageEnumeratePackages2( IXPackageImpl4 *ifac
     const char *title_id = getenv("XODUS_TITLE_ID");
 
     TRACE( "iface %p, kind %d, scope %d, context %p, callback %p\n", iface, kind, scope, context, callback );
+    if (kind == XPackageKind_Content)
+    {
+        return S_OK;
+    }
+
     if (!pfn || !pfn[0]) pfn = "XodusGame_8wekyb3d8bbwe";
     if (!title_name || !title_name[0]) title_name = "Xodus Game";
     if (!publisher || !publisher[0]) publisher = "Xbox Game Studios";
@@ -341,8 +353,10 @@ static HRESULT WINAPI x_package_XPackageEnumeratePackages2( IXPackageImpl4 *ifac
     details.publisher = publisher;
     details.storeId = store_id;
     details.titleID = title_id;
-    details.kind = kind;
+    details.kind = XPackageKind_Game;
     details.installing = FALSE;
+    details.index = 0;
+    details.count = 1;
     if (callback) callback(context, &details);
     return S_OK;
 }

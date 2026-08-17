@@ -20,6 +20,9 @@
 > [!CAUTION]
 > **Clean-Room Reverse Engineering**: This project is developed adhering strictly to [Wine's clean-room reverse engineering guidelines](https://gitlab.winehq.org/wine/wine/-/wikis/Clean-Room-Guidelines). It is not affiliated with, endorsed by, or sponsored by Microsoft Corporation or Xbox.
 
+> [!WARNING]
+> **Current Project Status**: `xgameruntime` currently supports enough GDK API surfaces to allow many single-player games to run flawlessly. However, online multiplayer games and features that require connecting to Microsoft servers (like in-game Xbox Live authentication) are still a work in progress and do not successfully connect yet.
+
 ---
 
 ## 🌟 Overview
