@@ -1,4 +1,5 @@
 <h1 align="center">xgameruntime</h1>
+<p align="center"><strong>Fork of <a href="https://github.com/xodus-gaming">xodus-gaming</a><strong></</p>
 <p align="center"><strong>Open-Source Wine & Proton Implementation of the Microsoft Gaming Runtime (GDK)</strong></p>
 <p align="center">
     <a href="https://github.com/nocts-software/xgameruntime/releases">
